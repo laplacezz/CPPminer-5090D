@@ -33,6 +33,7 @@ jobs:
       - name: Package portable Windows build
         shell: pwsh
         run: |
+          ./scripts/collect-licenses.ps1
           $out = 'dist/CPPminer-5090D-windows-experimental'
           New-Item $out -ItemType Directory -Force | Out-Null
           Copy-Item build/cppminer.exe,build/cp_tensor_test.exe,LICENSE $out

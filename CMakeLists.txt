@@ -205,8 +205,6 @@ if(CP_ENABLE_CUDA)
     find_package(CUDAToolkit REQUIRED)
     list(APPEND CP_SOURCES
         src/cuda/cp_gpu.cu
-        src/cuda/cp_cutlass_gemm.cu
-        src/cuda/cp_narrow_gemm.cu
         src/cuda/cp_cuda_worker.cpp
     )
     list(APPEND CP_INCLUDE_DIRS
@@ -406,12 +404,20 @@ else()
     add_compile_definitions(CP_ENABLE_WGPU=0)
 endif()
 
+if(CP_ENABLE_CUDA)
+    add_library(cp_tensor_cuda OBJECT src/cuda/cp_cutlass_gemm.cu src/cuda/cp_narrow_gemm.cu)
+    target_include_directories(cp_tensor_cuda PRIVATE include src/cuda)
+    if(CP_CUDA_SM120A)
+        target_compile_options(cp_tensor_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-gencode=arch=compute_120a,code=sm_120a>)
+    endif()
+    list(APPEND CP_SOURCES $<TARGET_OBJECTS:cp_tensor_cuda>)
+endif()
 add_executable(cppminer ${CP_SOURCES} ${CP_QPOW_AVX2_OBJECTS})
 target_include_directories(cppminer PRIVATE ${CP_INCLUDE_DIRS})
 
 if(CP_ENABLE_CUDA)
     target_link_libraries(cppminer PRIVATE CUDA::cudart)
-    add_executable(cp_tensor_test tests/cp_tensor_test.cu src/cuda/cp_cutlass_gemm.cu src/cuda/cp_narrow_gemm.cu)
+    add_executable(cp_tensor_test tests/cp_tensor_test.cu $<TARGET_OBJECTS:cp_tensor_cuda>)
     target_include_directories(cp_tensor_test PRIVATE include src/cuda)
     target_link_libraries(cp_tensor_test PRIVATE CUDA::cudart)
     if(CP_CUDA_SM120A)

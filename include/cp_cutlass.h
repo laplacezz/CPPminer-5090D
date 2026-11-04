@@ -14,11 +14,13 @@ int cp_cutlass_device_ok(int dev);
 int cp_tensor_set_mode(int mode);
 int cp_tensor_get_mode(void);
 void cp_tensor_invalidate_inputs(int dev);
+void cp_tensor_invalidate_a(int dev);
 void cp_tensor_release(int dev);
 void cp_tensor_set_positive_a(int on);
 int cp_tensor_positive_a(void);
 int cp_tensor_signal_tag(void);
 void cp_narrow_invalidate(int dev);
+void cp_narrow_invalidate_a(int dev);
 void cp_narrow_release(int dev);
 
 /* Fused GEMM + in-register milestone XOR for one period batch panel.

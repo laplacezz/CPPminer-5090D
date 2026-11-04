@@ -6,6 +6,7 @@ struct NarrowCache {
     const int8_t *srca=nullptr,*srcb=nullptr;
 };
 static NarrowCache cache[16];
+void cp_narrow_invalidate_a(int dev){if(dev>=0&&dev<16)cache[dev].srca=nullptr;}
 void cp_narrow_invalidate(int dev){if(dev>=0&&dev<16)cache[dev].valid=false;}
 void cp_narrow_release(int dev) {
     if(dev<0||dev>=16)return;cudaSetDevice(dev);auto& c=cache[dev];
@@ -51,8 +52,9 @@ static int prepare(int dev,int mode,const int8_t* a,const int8_t* b,int m,int n,
     if(!c.error&&cudaMalloc(&c.error,4)!=cudaSuccess)return -1;
     if(!c.valid||c.srca!=a||c.srcb!=b||c.step!=step||c.mode!=mode) {
         cudaMemset(c.error,0,4);
-        narrow_convert<<<(unsigned)((counta+255)/256),256>>>(a,c.a,counta,fmt,c.error);
-        narrow_convert<<<(unsigned)((countb+255)/256),256>>>(b,c.b,countb,fmt,c.error);
+        bool all=!c.valid||c.step!=step||c.mode!=mode;
+        if(all||c.srca!=a)narrow_convert<<<(unsigned)((counta+255)/256),256>>>(a,c.a,counta,fmt,c.error);
+        if(all||c.srcb!=b)narrow_convert<<<(unsigned)((countb+255)/256),256>>>(b,c.b,countb,fmt,c.error);
         int error=0;
         if(cudaGetLastError()!=cudaSuccess||cudaMemcpy(&error,c.error,4,cudaMemcpyDeviceToHost)!=cudaSuccess)return -1;
         if(error){fprintf(stderr,"[tensor] narrow mode requires exact input integers in [-3,3]; use the automatic binary A / zero-B generation\n");return -1;}

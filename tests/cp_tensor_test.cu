@@ -85,6 +85,8 @@ int main(int argc,char**argv) {
             if(!narrow&&mode>=3)continue;
             if(prop.major<12&&(mode==6||mode==7||mode>=10))continue;
             cp_tensor_set_mode(mode);std::vector<float>samples;
+            auto unix_ms=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+            printf("BENCH_BEGIN mode=%d unix_ms=%lld\n",mode,(long long)unix_ms);fflush(stdout);
             auto start=std::chrono::steady_clock::now();
             do {
                 CU(cudaMemset(found,0,4));CU(cudaEventRecord(begin));

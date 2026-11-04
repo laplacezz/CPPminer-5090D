@@ -11,6 +11,7 @@ __global__ void convert_half(const int8_t* src,__half* dst,size_t count) {
     size_t i=(size_t)blockIdx.x*blockDim.x+threadIdx.x;
     if(i<count)dst[i]=__int2half_rn((int)src[i]);
 }
+void cp_tensor_invalidate_a(int dev){if(dev>=0&&dev<16)half_cache[dev].srca=nullptr;cp_narrow_invalidate_a(dev);}
 void cp_tensor_invalidate_inputs(int dev) {if(dev>=0&&dev<16)half_cache[dev].valid=false;cp_narrow_invalidate(dev);}
 void cp_tensor_release(int dev) {
     if(dev<0||dev>=16)return;
@@ -23,12 +24,11 @@ static int prepare_half(int dev,const int8_t* a,const int8_t* b,int m,int n,int 
     if(c.as!=as||c.bs!=bs){cp_tensor_release(dev);}
     if(!c.a){if(cudaMalloc(&c.a,as*2)!=cudaSuccess)return -1;c.as=as;}
     if(!c.b){if(cudaMalloc(&c.b,bs*2)!=cudaSuccess)return -1;c.bs=bs;}
-    if(!c.valid||c.srca!=a||c.srcb!=b||c.step!=step) {
-        convert_half<<<(unsigned)((as+255)/256),256>>>(a,c.a,as);
-        convert_half<<<(unsigned)((bs+255)/256),256>>>(b,c.b,bs);
-        if(cudaGetLastError()!=cudaSuccess)return -1;
-        c.srca=a;c.srcb=b;c.step=step;c.valid=true;
-    }
+    bool all=!c.valid||c.step!=step;
+    if(all||c.srca!=a)convert_half<<<(unsigned)((as+255)/256),256>>>(a,c.a,as);
+    if(all||c.srcb!=b)convert_half<<<(unsigned)((bs+255)/256),256>>>(b,c.b,bs);
+    if(cudaGetLastError()!=cudaSuccess)return -1;
+    c.srca=a;c.srcb=b;c.step=step;c.valid=true;
     return 0;
 }
 int cp_tensor_set_mode(int mode) {if(mode<0||mode>14)return -1;tensor_mode=mode;return 0;}

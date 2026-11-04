@@ -141,7 +141,7 @@ __global__ __launch_bounds__(256) void cp_narrow_kernel(const void* av,const voi
                         fold^=(uint32_t)cumulative[i][j][e];
                     } else fold^=__float_as_uint(fc[i][j][e]);
                 }
-        if constexpr(!HALFACC)fold=(uint32_t)(((int)fold<<10)>>10);
+        if constexpr(!HALFACC)fold=(uint32_t)((int32_t)(fold<<10)>>10);
         if(DUMP)dump[(size_t)s*tiles+tile]=fold;
         int w=s%16;transcript[w]=((transcript[w]<<13)|(transcript[w]>>19))^fold;
     }
@@ -245,7 +245,7 @@ template<bool NV,bool DUMP> __global__ __launch_bounds__(256) void cp_block4_ker
         uint32_t fold=0;
         #pragma unroll
         for(int i=0;i<4;++i)for(int j=0;j<4;++j)for(int e=0;e<4;++e)fold^=__float_as_uint(fc[i][j][e]);
-        fold=(uint32_t)(((int)fold<<10)>>10);
+        fold=(uint32_t)((int32_t)(fold<<10)>>10);
         if(DUMP)dump[(size_t)s*tiles+tile]=fold;
         int w=s%16;transcript[w]=((transcript[w]<<13)|(transcript[w]>>19))^fold;
     }

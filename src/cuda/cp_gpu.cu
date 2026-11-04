@@ -575,6 +575,7 @@ static void gpu_noise_apply_a(GpuCtx* g, int m)
 /* signal may be NULL (zero-B: noise-only into d_BpT). */
 static void gpu_noise_apply_b(GpuCtx* g, int n, const int8_t* d_bt_sig)
 {
+    cp_tensor_invalidate_inputs(g->dev);
     const int tpb = 256;
     const size_t smem = (size_t)R_RANK + (size_t)K_DIM;
 
@@ -758,7 +759,7 @@ static void gpu_period_gemm_batch(
         const size_t tiles_per_batch = cp_cutlass_tiles_per_batch(
             row_batch_count, col_batch_count);
         // The noisy matrices can change at the same addresses on every nonce.
-        if(row_period0==0 && col_period0==0) cp_tensor_invalidate_inputs(g->dev);
+        if(row_period0==0 && col_period0==0) cp_tensor_invalidate_a(g->dev);
         CpCutlassJackpotLaunch jp;
         for(int i = 0; i < 8; i++)
             jp.bound[i] = bound[i];
