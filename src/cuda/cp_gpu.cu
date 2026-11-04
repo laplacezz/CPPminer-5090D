@@ -404,6 +404,7 @@ void cp_gpu_shutdown(void)
     for(int i = 0; i < g_ngpu; i++){
         GpuCtx* g = &g_gpus[i];
         CU_CHECK(cudaSetDevice(g->dev));
+        cp_tensor_release(g->dev);
         if(g->d_Ap) cudaFree(g->d_Ap);
         if(g->d_BpT) cudaFree(g->d_BpT);
         if(g->d_A_sig) cudaFree(g->d_A_sig);
@@ -756,6 +757,8 @@ static void gpu_period_gemm_batch(
     if(g->use_cutlass_fused){
         const size_t tiles_per_batch = cp_cutlass_tiles_per_batch(
             row_batch_count, col_batch_count);
+        // The noisy matrices can change at the same addresses on every nonce.
+        if(row_period0==0 && col_period0==0) cp_tensor_invalidate_inputs(g->dev);
         CpCutlassJackpotLaunch jp;
         for(int i = 0; i < 8; i++)
             jp.bound[i] = bound[i];

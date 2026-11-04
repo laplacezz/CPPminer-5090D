@@ -27,10 +27,13 @@ __device__ __forceinline__ size_t cp_tensor_index(int row, int k, int rows, bool
 template<int MODE, bool DUMP>
 __global__ __launch_bounds__(256) void cp_tensor_kernel(
     const int8_t* __restrict__ A, const int8_t* __restrict__ B,
+    const __half* __restrict__ AH, const __half* __restrict__ BH,
     int m, int n, int rp, int cp, bool step, uint32_t* dump,
     size_t tile_count, CpCutlassJackpotLaunch jp, bool jackpot) {
-    __shared__ __align__(16) int8_t sa[128][32], sb[128][32];
-    __shared__ __align__(16) __half ha[128][32], hb[128][32];
+    // Padded row strides avoid the repeated shared-memory bank collisions of
+    // tightly packed 32-wide rows for the PTX fragment lane mapping.
+    __shared__ __align__(16) int8_t sa[128][48], sb[128][48];
+    __shared__ __align__(16) __half ha[128][40], hb[128][40];
     const int tid=threadIdx.x, lane=tid&31, warp=tid>>5;
     const int wm=warp/4, wn=warp%4, gid=lane/4, t=lane%4;
     const int row0=(rp+blockIdx.y)*128, col0=(cp+blockIdx.x)*128;
@@ -49,10 +52,12 @@ __global__ __launch_bounds__(256) void cp_tensor_kernel(
                 *reinterpret_cast<int4*>(&sa[rr][kk])=*reinterpret_cast<const int4*>(ap);
                 *reinterpret_cast<int4*>(&sb[rr][kk])=*reinterpret_cast<const int4*>(bp);
             } else {
-                #pragma unroll
-                for(int e=0;e<16;++e) {
-                    ha[rr][kk+e]=__int2half_rn((int)ap[e]); hb[rr][kk+e]=__int2half_rn((int)bp[e]);
-                }
+                const __half* ah=AH+cp_tensor_index(row0+rr,k0+kk,m,step);
+                const __half* bh=BH+cp_tensor_index(col0+rr,k0+kk,n,step);
+                *reinterpret_cast<int4*>(&ha[rr][kk])=*reinterpret_cast<const int4*>(ah);
+                *reinterpret_cast<int4*>(&ha[rr][kk+8])=*reinterpret_cast<const int4*>(ah+8);
+                *reinterpret_cast<int4*>(&hb[rr][kk])=*reinterpret_cast<const int4*>(bh);
+                *reinterpret_cast<int4*>(&hb[rr][kk+8])=*reinterpret_cast<const int4*>(bh+8);
             }
             __syncthreads();
             if(MODE==0 || (MODE==2 && panel%2==0)) {

@@ -154,6 +154,7 @@ static void print_usage(void)
     printf("  --profile-prep [N]   time OpenCL matrix prep phases (default N=3)\n");
 #endif
     printf("  --max-nonce N        stop after N matrix attempts per job\n");
+    printf("  --no-fee             disable upstream developer fee (no extra fork fee)\n");
     printf("  --dry-run            build proof but do not submit\n");
     printf("  --verify             run in-process zk-pow verify before submit\n");
     printf("  --cert-version N     force certificate version for verify (1/2=legacy, 3=salted;\n");
@@ -1423,7 +1424,7 @@ int main(int argc, char** argv)
         int row_parts = cp_pp_num_row_parts(g_m_active, contiguous);
         int col_parts = cp_pp_num_col_parts(g_n_active, contiguous);
         const char *tile_layout_name =
-            cutlass_fused ? "CUTLASS MMA lane 8x8 interleaved (128x128 CTA)"
+            cutlass_fused ? "native Tensor Core lane 8x8 (128x128 CTA)"
             : (tile_layout == CP_TILE_LAYOUT_CONTIGUOUS_16x16) ? "contiguous 16x16 blocks"
             : (tile_layout == CP_TILE_LAYOUT_CONTIGUOUS_4x8) ? "contiguous 4x8 blocks"
             : (tile_layout == CP_TILE_LAYOUT_CONTIGUOUS_8x8) ? "contiguous 8x8 blocks"
@@ -1490,8 +1491,8 @@ int main(int argc, char** argv)
             }
         } else if(cp_worker_backend_id() == CP_BACKEND_CUDA){
             if(cutlass_fused){
-                printf("[mode] proof rows/cols: 8 A + 8 B^T (interleaved 4x4)\n");
-                printf("[mode] scan: CUTLASS Case 10 fused GEMM + inline XOR jackpot\n");
+                printf("[mode] proof rows/cols: 8 A + 8 B^T (Tensor Core fragment layout)\n");
+                printf("[mode] scan: exact Tensor Core GEMM + inline XOR jackpot\n");
             } else {
                 printf("[mode] scan: %s\n",
                        (contiguous || no_period_gemm) ? "per-tile kernel"
@@ -1502,8 +1503,8 @@ int main(int argc, char** argv)
                        "(A_sig + noisy A/B, no d_Bt_sig)\n");
             }
         } else if(cutlass_fused){
-            printf("[mode] proof rows/cols: 8 A + 8 B^T (interleaved 4x4)\n");
-            printf("[mode] scan: CUTLASS Case 10 fused GEMM + inline XOR jackpot\n");
+            printf("[mode] proof rows/cols: 8 A + 8 B^T (Tensor Core fragment layout)\n");
+            printf("[mode] scan: exact Tensor Core GEMM + inline XOR jackpot\n");
         } else {
             printf("[mode] scan: %s\n",
                    (contiguous || no_period_gemm) ? "per-tile kernel"

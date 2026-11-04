@@ -55,6 +55,7 @@ int main(int argc,char**argv) {
                 CU(cudaMemcpy(db,bb.data(),bb.size(),cudaMemcpyHostToDevice));
                 for(int mode=0;mode<3;++mode) {
                     cp_tensor_set_mode(mode);
+                    cp_tensor_invalidate_inputs(0);
                     if(cp_cutlass_period_batch(0,da,db,dim,dim,1,1,1,1,step,dd,256,nullptr)!=0)return 2;
                     std::vector<uint32_t> got(ref.size());CU(cudaMemcpy(got.data(),dd,got.size()*4,cudaMemcpyDeviceToHost));
                     for(size_t i=0;i<ref.size();++i) if(got[i]!=ref[i]) {
