@@ -1,0 +1,222 @@
+[
+  {
+    "mode": 0,
+    "name": "int8",
+    "samples": 405,
+    "median_ms": 14.8874,
+    "TMAC_s": 147.7101,
+    "median_W": 401.99,
+    "median_core_MHz": 1927.0,
+    "TMAC_s_W": 0.367447200179109,
+    "power_samples": 4
+  },
+  {
+    "mode": 1,
+    "name": "fp16",
+    "samples": 160,
+    "median_ms": 37.1701,
+    "TMAC_s": 59.1611,
+    "median_W": 402.015,
+    "median_core_MHz": 2816.0,
+    "TMAC_s_W": 0.14716142432496299,
+    "power_samples": 4
+  },
+  {
+    "mode": 2,
+    "name": "mixed",
+    "samples": 205,
+    "median_ms": 29.222,
+    "TMAC_s": 75.2522,
+    "median_W": 401.93,
+    "median_core_MHz": 2745.0,
+    "TMAC_s_W": 0.18722712910208245,
+    "power_samples": 3
+  },
+  {
+    "mode": 3,
+    "name": "bf16",
+    "samples": 155,
+    "median_ms": 38.4821,
+    "TMAC_s": 57.1441,
+    "median_W": 402.01,
+    "median_core_MHz": 2805.0,
+    "TMAC_s_W": 0.14214596651824582,
+    "power_samples": 4
+  },
+  {
+    "mode": 4,
+    "name": "tf32",
+    "samples": 95,
+    "median_ms": 62.372,
+    "TMAC_s": 35.2566,
+    "median_W": 402.06,
+    "median_core_MHz": 2812.0,
+    "TMAC_s_W": 0.08768989703029398,
+    "power_samples": 4
+  },
+  {
+    "mode": 5,
+    "name": "fp8",
+    "samples": 91,
+    "median_ms": 65.9866,
+    "TMAC_s": 33.3253,
+    "median_W": 402.01,
+    "median_core_MHz": 2707.0,
+    "TMAC_s_W": 0.08289669411208676,
+    "power_samples": 4
+  },
+  {
+    "mode": 6,
+    "name": "fp6",
+    "samples": 39,
+    "median_ms": 152.2868,
+    "TMAC_s": 14.44,
+    "median_W": 402.07,
+    "median_core_MHz": 2790.0,
+    "TMAC_s_W": 0.03591414430323078,
+    "power_samples": 4
+  },
+  {
+    "mode": 7,
+    "name": "fp4",
+    "samples": 38,
+    "median_ms": 156.1966,
+    "TMAC_s": 14.0786,
+    "median_W": 402.005,
+    "median_core_MHz": 2831.0,
+    "TMAC_s_W": 0.035020957450777976,
+    "power_samples": 4
+  },
+  {
+    "mode": 8,
+    "name": "int4",
+    "samples": 17,
+    "median_ms": 365.0154,
+    "TMAC_s": 6.0245,
+    "median_W": 402.05,
+    "median_core_MHz": 2760.0,
+    "TMAC_s_W": 0.014984454669817186,
+    "power_samples": 4
+  },
+  {
+    "mode": 9,
+    "name": "fp16-fast",
+    "samples": 155,
+    "median_ms": 38.4366,
+    "TMAC_s": 57.2117,
+    "median_W": 401.95000000000005,
+    "median_core_MHz": 2812.0,
+    "TMAC_s_W": 0.14233536509516106,
+    "power_samples": 4
+  },
+  {
+    "mode": 10,
+    "name": "fp4-fp16",
+    "samples": 34,
+    "median_ms": 175.6588,
+    "TMAC_s": 12.5187,
+    "median_W": 402.21,
+    "median_core_MHz": 2790.0,
+    "TMAC_s_W": 0.031124785559782205,
+    "power_samples": 3
+  },
+  {
+    "mode": 11,
+    "name": "fp6-fp16",
+    "samples": 35,
+    "median_ms": 171.3629,
+    "TMAC_s": 12.8326,
+    "median_W": 401.96,
+    "median_core_MHz": 2763.5,
+    "TMAC_s_W": 0.03192506717086277,
+    "power_samples": 4
+  },
+  {
+    "mode": 12,
+    "name": "mxfp6",
+    "samples": 39,
+    "median_ms": 153.7379,
+    "TMAC_s": 14.3037,
+    "median_W": 401.855,
+    "median_core_MHz": 2778.5,
+    "TMAC_s_W": 0.03559418198106282,
+    "power_samples": 4
+  },
+  {
+    "mode": 13,
+    "name": "mxfp4",
+    "samples": 77,
+    "median_ms": 77.2982,
+    "TMAC_s": 28.4486,
+    "median_W": 401.90999999999997,
+    "median_core_MHz": 2778.5,
+    "TMAC_s_W": 0.0707835087457391,
+    "power_samples": 4
+  },
+  {
+    "mode": 14,
+    "name": "nvfp4",
+    "samples": 77,
+    "median_ms": 77.2669,
+    "TMAC_s": 28.4601,
+    "median_W": 401.99,
+    "median_core_MHz": 2775.0,
+    "TMAC_s_W": 0.07079802980173636,
+    "power_samples": 3
+  },
+  {
+    "mode": 15,
+    "name": "project-fp16",
+    "samples": 202,
+    "median_ms": 29.6696,
+    "TMAC_s": 74.1171,
+    "median_W": 402.005,
+    "median_core_MHz": 2760.0,
+    "TMAC_s_W": 0.1843686023805674,
+    "power_samples": 4
+  },
+  {
+    "mode": 16,
+    "name": "project-bf16",
+    "samples": 114,
+    "median_ms": 52.5754,
+    "TMAC_s": 41.8261,
+    "median_W": 401.99,
+    "median_core_MHz": 2756.0,
+    "TMAC_s_W": 0.10404761312470459,
+    "power_samples": 4
+  },
+  {
+    "mode": 17,
+    "name": "project-tf32",
+    "samples": 108,
+    "median_ms": 55.3575,
+    "TMAC_s": 39.724,
+    "median_W": 401.98,
+    "median_core_MHz": 2640.0,
+    "TMAC_s_W": 0.09882083685755509,
+    "power_samples": 4
+  },
+  {
+    "mode": 18,
+    "name": "fp6-karatsuba",
+    "samples": 92,
+    "median_ms": 64.727,
+    "TMAC_s": 33.9738,
+    "median_W": 401.9,
+    "median_core_MHz": 2752.0,
+    "TMAC_s_W": 0.08453296840009952,
+    "power_samples": 3
+  },
+  {
+    "mode": 19,
+    "name": "fp16-bias",
+    "samples": 153,
+    "median_ms": 38.7614,
+    "TMAC_s": 56.7323,
+    "median_W": 401.95,
+    "median_core_MHz": 2805.0,
+    "TMAC_s_W": 0.14114267943774103,
+    "power_samples": 4
+  }
+]

@@ -40,6 +40,7 @@ interleaved hash layout. There is no approximate acceptance tolerance.
 | project-bf16 | Two BF16 x BF16 -> F32 | Exact high/residual split of projected A |
 | project-tf32 | TF32 x TF32 -> F32 | Checked projection, exact integer inputs |
 | fp16-bias | F16 x F16 -> F32 | Cauchy bound; otherwise segmented exact fallback |
+| int8-tall / int8-wide | S8 x S8 -> S32 | 256x64 / 64x256 CTA, same canonical hash cells |
 
 FP6/FP4/blocked formats require the included SM120a code and Blackwell hardware.
 Unsupported radix modes return an exact INT8 fallback on older hardware.
@@ -150,3 +151,7 @@ with aligned measurement windows. A MAC is one multiply-accumulate; standard
 TOPS/TFLOPS convention counts two operations per MAC. Do not silently compare
 different miners' displayed units or multiply a microbenchmark by a marketing
 sparsity factor. No equal-clock full-5090 comparator is available on this PC.
+
+`--binary-a` provides a 0/1-signal INT8 control. The tall/wide modes use this
+distribution automatically. Ineligible odd batch shapes retain the 128x128
+integer kernel. Multi-CTA tests check their canonical output remapping.

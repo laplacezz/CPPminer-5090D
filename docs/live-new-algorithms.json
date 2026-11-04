@@ -1,0 +1,42 @@
+[
+  {
+    "log": "20261105-032323-pool-project-fp16-8a02aff-out.log",
+    "rate_samples": 9,
+    "end_to_end_median_TMAC_s": 71.32,
+    "median_W": 401.97,
+    "core_MHz": 2820.0,
+    "accepted": 1,
+    "verified": 1,
+    "reject_lines": 0
+  },
+  {
+    "log": "20261105-032455-pool-fp16-bias-8a02aff-out.log",
+    "rate_samples": 8,
+    "end_to_end_median_TMAC_s": 60.595,
+    "median_W": 401.98,
+    "core_MHz": 2677.0,
+    "accepted": 0,
+    "verified": 0,
+    "reject_lines": 0
+  },
+  {
+    "log": "20261105-032848-pool-fp16-bias-repeat-8a02aff-out.log",
+    "rate_samples": 13,
+    "end_to_end_median_TMAC_s": 60.6,
+    "median_W": 401.96,
+    "core_MHz": 2677.0,
+    "accepted": 2,
+    "verified": 2,
+    "reject_lines": 0
+  },
+  {
+    "log": "20261105-033446-pool-int8-binary-8039959-out.log",
+    "rate_samples": 21,
+    "end_to_end_median_TMAC_s": 129.66,
+    "median_W": 401.98,
+    "core_MHz": 2227.0,
+    "accepted": 11,
+    "verified": 11,
+    "reject_lines": 0
+  }
+]
