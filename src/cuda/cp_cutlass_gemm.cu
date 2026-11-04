@@ -31,7 +31,7 @@ static int prepare_half(int dev,const int8_t* a,const int8_t* b,int m,int n,int 
     }
     return 0;
 }
-int cp_tensor_set_mode(int mode) {if(mode<0||mode>12)return -1;tensor_mode=mode;return 0;}
+int cp_tensor_set_mode(int mode) {if(mode<0||mode>14)return -1;tensor_mode=mode;return 0;}
 int cp_tensor_get_mode(void) {return tensor_mode;}
 int cp_cutlass_device_ok(int dev) {cudaDeviceProp p;return cudaGetDeviceProperties(&p,dev)==cudaSuccess&&p.major>=8;}
 size_t cp_cutlass_tiles_per_batch(int r,int c) {return (size_t)r*c*256;}

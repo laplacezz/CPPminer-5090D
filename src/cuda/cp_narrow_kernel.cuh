@@ -185,3 +185,69 @@ template<bool DUMP> __global__ __launch_bounds__(256) void cp_int4_kernel(const 
     }
     cp_narrow_jackpot(transcript,jp,jackpot,row0+wm*64+gid,col0+wn*32+2*t);
 }
+
+// Also compare the higher absolute throughput of block-scaled FP4. Although
+// this class is reduced on the D SKU, its remaining throughput may still beat
+// another class. All scales are exactly 1 and all input integers are exact.
+template<bool NV> __device__ __forceinline__ void cp_block4_mma(float* d,const unsigned* a,const unsigned* b) {
+#if __CUDA_ARCH__ >= 1200
+    unsigned short zero=0;
+    if constexpr(NV) {
+        unsigned scale=0x38383838u;
+        asm volatile("mma.sync.aligned.m16n8k64.row.col.kind::mxf4nvf4.block_scale.scale_vec::4X.f32.e2m1.e2m1.f32.ue4m3 "
+            "{%0,%1,%2,%3},{%4,%5,%6,%7},{%8,%9},{%0,%1,%2,%3},%10,{%11,%12},%13,{%14,%15};"
+            : "+f"(d[0]),"+f"(d[1]),"+f"(d[2]),"+f"(d[3])
+            : "r"(a[0]),"r"(a[1]),"r"(a[2]),"r"(a[3]),"r"(b[0]),"r"(b[1]),
+              "r"(scale),"h"(zero),"h"(zero),"r"(scale),"h"(zero),"h"(zero));
+    } else {
+        unsigned scale=0x7f7f7f7fu;
+        asm volatile("mma.sync.aligned.m16n8k64.row.col.kind::mxf4.block_scale.scale_vec::2X.f32.e2m1.e2m1.f32.ue8m0 "
+            "{%0,%1,%2,%3},{%4,%5,%6,%7},{%8,%9},{%0,%1,%2,%3},%10,{%11,%12},%13,{%14,%15};"
+            : "+f"(d[0]),"+f"(d[1]),"+f"(d[2]),"+f"(d[3])
+            : "r"(a[0]),"r"(a[1]),"r"(a[2]),"r"(a[3]),"r"(b[0]),"r"(b[1]),
+              "r"(scale),"h"(zero),"h"(zero),"r"(scale),"h"(zero),"h"(zero));
+    }
+#endif
+}
+template<bool NV,bool DUMP> __global__ __launch_bounds__(256) void cp_block4_kernel(
+    const unsigned char* A,const unsigned char* B,int m,int n,int rp,int cp,bool step,
+    uint32_t* dump,size_t tiles,CpCutlassJackpotLaunch jp,bool jackpot) {
+    __shared__ __align__(16) unsigned char sa[128][48],sb[128][48];
+    int tid=threadIdx.x,lane=tid%32,warp=tid/32,wm=warp/4,wn=warp%4,gid=lane/4,t=lane%4;
+    unsigned linear=blockIdx.y*gridDim.x+blockIdx.x,tr=linear%gridDim.y,tc=linear/gridDim.y;
+    int row0=(rp+tr)*128,col0=(cp+tc)*128;
+    size_t tile=((size_t)tr*gridDim.x+tc)*256+tid;
+    float fc[4][4][4];uint32_t transcript[16]={};
+    #pragma unroll
+    for(int i=0;i<4;++i)for(int j=0;j<4;++j)for(int e=0;e<4;++e)fc[i][j][e]=12582912.0f;
+    #pragma unroll 1
+    for(int s=0;s<32;++s) {
+        #pragma unroll
+        for(int panel=0;panel<2;++panel) {
+            int k0=s*128+panel*64,rr=tid/2,kk=(tid%2)*16;
+            *(int4*)&sa[rr][kk]=*(const int4*)(A+cp_tensor_index(row0+rr,k0+2*kk,m,step)/2);
+            *(int4*)&sb[rr][kk]=*(const int4*)(B+cp_tensor_index(col0+rr,k0+2*kk,n,step)/2);
+            __syncthreads();
+            unsigned ar[4][4],br[4][2];
+            #pragma unroll
+            for(int i=0;i<4;++i) {
+                int r=wm*64+i*16+gid,c=wn*32+i*8+gid;
+                ar[i][0]=cp_ld32(&sa[r][4*t]);ar[i][1]=cp_ld32(&sa[r+8][4*t]);
+                ar[i][2]=cp_ld32(&sa[r][4*t+16]);ar[i][3]=cp_ld32(&sa[r+8][4*t+16]);
+                br[i][0]=cp_ld32(&sb[c][4*t]);br[i][1]=cp_ld32(&sb[c][4*t+16]);
+            }
+            #pragma unroll
+            for(int i=0;i<4;++i)
+                #pragma unroll
+                for(int j=0;j<4;++j)cp_block4_mma<NV>(fc[i][j],ar[i],br[j]);
+            __syncthreads();
+        }
+        uint32_t fold=0;
+        #pragma unroll
+        for(int i=0;i<4;++i)for(int j=0;j<4;++j)for(int e=0;e<4;++e)fold^=__float_as_uint(fc[i][j][e]);
+        fold=(uint32_t)(((int)fold<<10)>>10);
+        if(DUMP)dump[(size_t)s*tiles+tile]=fold;
+        int w=s%16;transcript[w]=((transcript[w]<<13)|(transcript[w]>>19))^fold;
+    }
+    cp_narrow_jackpot(transcript,jp,jackpot,row0+wm*64+gid,col0+wn*32+2*t);
+}

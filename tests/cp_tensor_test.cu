@@ -56,9 +56,9 @@ int main(int argc,char**argv) {
                 auto aa=step?pack(a,dim):a,bb=step?pack(b,dim):b;
                 CU(cudaMemcpy(da,aa.data(),aa.size(),cudaMemcpyHostToDevice));
                 CU(cudaMemcpy(db,bb.data(),bb.size(),cudaMemcpyHostToDevice));
-                for(int mode=0;mode<13;++mode) {
+                for(int mode=0;mode<15;++mode) {
                     if(pattern<3&&mode>=3)continue;
-                    if(prop.major<12&&(mode==6||mode==7||mode==10||mode==11||mode==12))continue;
+                    if(prop.major<12&&(mode==6||mode==7||mode>=10))continue;
                     cp_tensor_set_mode(mode);
                     cp_tensor_invalidate_inputs(0);
                     if(cp_cutlass_period_batch(0,da,db,dim,dim,1,1,1,1,step,dd,256,nullptr)!=0)return 2;
@@ -80,10 +80,10 @@ int main(int argc,char**argv) {
         cudaEvent_t begin,end;CU(cudaEventCreate(&begin));CU(cudaEventCreate(&end));
         const int rb=large?32:64,cb=large?1024:64; const double mac=(double)rb*cb*128*128*4096;
         int selected=argc>2?atoi(argv[2]):-1;
-        for(int mode=0;mode<13;++mode) {
+        for(int mode=0;mode<15;++mode) {
             if(selected>=0&&mode!=selected)continue;
             if(!narrow&&mode>=3)continue;
-            if(prop.major<12&&(mode==6||mode==7||mode==10||mode==11||mode==12))continue;
+            if(prop.major<12&&(mode==6||mode==7||mode>=10))continue;
             cp_tensor_set_mode(mode);std::vector<float>samples;
             auto start=std::chrono::steady_clock::now();
             do {

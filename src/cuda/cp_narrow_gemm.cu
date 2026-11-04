@@ -13,7 +13,7 @@ void cp_narrow_release(int dev) {
 }
 static int format_for_mode(int mode) {
     switch(mode){case 3:return 5;case 4:return 3;case 5:return 0;case 6:return 1;
-        case 7:return 2;case 8:return 7;case 9:return 4;case 10:return 2;case 11:return 1;case 12:return 6;}
+        case 7:return 2;case 8:return 7;case 9:return 4;case 10:return 2;case 11:return 1;case 12:return 6;case 13:case 14:return 8;}
     return -1;
 }
 __device__ unsigned narrow_bits(int v,int fmt) {
@@ -27,10 +27,11 @@ __device__ unsigned narrow_bits(int v,int fmt) {
 }
 __global__ void narrow_convert(const int8_t* src,void* dst,size_t count,int fmt,int* error) {
     size_t i=(size_t)blockIdx.x*blockDim.x+threadIdx.x;
-    if(fmt==7) {
+    if(fmt==7||fmt==8) {
         if(i>=count/2)return;int a=src[2*i],b=src[2*i+1];
         if(a<-3||a>3||b<-3||b>3)atomicExch(error,1);
-        ((unsigned char*)dst)[i]=(unsigned char)((a&15)|((b&15)<<4));return;
+        unsigned x=fmt==7?(a&15):(narrow_bits(a,2)>>2),y=fmt==7?(b&15):(narrow_bits(b,2)>>2);
+        ((unsigned char*)dst)[i]=(unsigned char)(x|(y<<4));return;
     }
     if(i>=count)return;int v=src[i];
     if(v<-3||v>3){atomicExch(error,1);v=0;}
@@ -43,7 +44,7 @@ static int prepare(int dev,int mode,const int8_t* a,const int8_t* b,int m,int n,
     int fmt=format_for_mode(mode);auto& c=cache[dev];
     size_t counta=(size_t)m*K_DIM,countb=(size_t)n*K_DIM;
     size_t bytes=fmt==3?4:(fmt==4||fmt==5)?2:1;
-    size_t as=fmt==7?counta/2:counta*bytes,bs=fmt==7?countb/2:countb*bytes;
+    size_t as=fmt>=7?counta/2:counta*bytes,bs=fmt>=7?countb/2:countb*bytes;
     if(c.as!=as||c.bs!=bs||c.mode!=mode)cp_narrow_release(dev);
     if(!c.a){if(cudaMalloc(&c.a,as)!=cudaSuccess)return -1;c.as=as;}
     if(!c.b){if(cudaMalloc(&c.b,bs)!=cudaSuccess)return -1;c.bs=bs;}
@@ -67,7 +68,7 @@ template<int FMT,bool HALFACC=false> static void run(const NarrowCache& c,int m,
 int cp_narrow_period_batch(int dev,int mode,const int8_t* a,const int8_t* b,int m,int n,
     int rp,int cp,int rb,int cb,int step,uint32_t* dump,size_t tiles,const CpCutlassJackpotLaunch* j) {
     cudaDeviceProp prop;cudaGetDeviceProperties(&prop,dev);
-    if((mode==6||mode==7||mode==10||mode==11||mode==12)&&prop.major<12){fprintf(stderr,"[tensor] this mode requires Blackwell SM120a\n");return -1;}
+    if((mode==6||mode==7||mode>=10)&&prop.major<12){fprintf(stderr,"[tensor] this mode requires Blackwell SM120a\n");return -1;}
     if(prepare(dev,mode,a,b,m,n,step)!=0)return -1;
     const auto& c=cache[dev];CpCutlassJackpotLaunch jp={};if(j)jp=*j;
     switch(mode) {
@@ -84,6 +85,14 @@ int cp_narrow_period_batch(int dev,int mode,const int8_t* a,const int8_t* b,int 
     case 10:run<2,true>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
     case 11:run<1,true>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
     case 12:run<6>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
+    case 13:
+        if(dump)cp_block4_kernel<false,true><<<dim3(cb,rb),256>>>((const unsigned char*)c.a,(const unsigned char*)c.b,m,n,rp,cp,step!=0,dump,tiles,jp,j!=nullptr);
+        else cp_block4_kernel<false,false><<<dim3(cb,rb),256>>>((const unsigned char*)c.a,(const unsigned char*)c.b,m,n,rp,cp,step!=0,nullptr,tiles,jp,j!=nullptr);
+        break;
+    case 14:
+        if(dump)cp_block4_kernel<true,true><<<dim3(cb,rb),256>>>((const unsigned char*)c.a,(const unsigned char*)c.b,m,n,rp,cp,step!=0,dump,tiles,jp,j!=nullptr);
+        else cp_block4_kernel<true,false><<<dim3(cb,rb),256>>>((const unsigned char*)c.a,(const unsigned char*)c.b,m,n,rp,cp,step!=0,nullptr,tiles,jp,j!=nullptr);
+        break;
     default:return -1;
     }
     cudaError_t err=cudaGetLastError();if(err!=cudaSuccess){fprintf(stderr,"[tensor] %s\n",cudaGetErrorString(err));return -1;}return 0;
