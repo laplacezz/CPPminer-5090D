@@ -2,7 +2,7 @@
 #include <cstdio>
 struct NarrowCache {
     void *a=nullptr,*b=nullptr;int* error=nullptr;
-    size_t as=0,bs=0;int mode=-1,step=-1;bool valid=false;
+    size_t as=0,bs=0;int mode=-1,step=-1;bool valid=false,bias_safe=false;
     const int8_t *srca=nullptr,*srcb=nullptr;
 };
 static NarrowCache cache[16];
@@ -14,7 +14,7 @@ void cp_narrow_release(int dev) {
 }
 static int format_for_mode(int mode) {
     switch(mode){case 3:return 5;case 4:return 3;case 5:return 0;case 6:return 1;
-        case 7:return 2;case 8:return 7;case 9:return 4;case 10:return 2;case 11:return 1;case 12:return 6;case 13:case 14:return 8;}
+        case 7:return 2;case 8:return 7;case 9:case 19:return 4;case 10:return 2;case 11:return 1;case 12:return 6;case 13:case 14:return 8;}
     return -1;
 }
 __device__ unsigned narrow_bits(int v,int fmt) {
@@ -41,6 +41,12 @@ __global__ void narrow_convert(const int8_t* src,void* dst,size_t count,int fmt,
     else if(fmt==4||fmt==5)((unsigned short*)dst)[i]=(unsigned short)bits;
     else ((unsigned char*)dst)[i]=(unsigned char)bits;
 }
+__global__ void max_energy(const int8_t* src,int rows,bool step,unsigned* maximum){
+    __shared__ unsigned sums[128];int row=blockIdx.x,t=threadIdx.x;unsigned sum=0;
+    for(int k=t;k<K_DIM;k+=128){int x=src[cp_tensor_index(row,k,rows,step)];sum+=(unsigned)(x*x);}
+    sums[t]=sum;__syncthreads();for(int d=64;d;d/=2){if(t<d)sums[t]+=sums[t+d];__syncthreads();}
+    if(t==0)atomicMax(maximum,sums[0]);
+}
 static int prepare(int dev,int mode,const int8_t* a,const int8_t* b,int m,int n,int step) {
     int fmt=format_for_mode(mode);auto& c=cache[dev];
     size_t counta=(size_t)m*K_DIM,countb=(size_t)n*K_DIM;
@@ -49,12 +55,19 @@ static int prepare(int dev,int mode,const int8_t* a,const int8_t* b,int m,int n,
     if(c.as!=as||c.bs!=bs||c.mode!=mode)cp_narrow_release(dev);
     if(!c.a){if(cudaMalloc(&c.a,as)!=cudaSuccess)return -1;c.as=as;}
     if(!c.b){if(cudaMalloc(&c.b,bs)!=cudaSuccess)return -1;c.bs=bs;}
-    if(!c.error&&cudaMalloc(&c.error,4)!=cudaSuccess)return -1;
+    if(!c.error&&cudaMalloc(&c.error,12)!=cudaSuccess)return -1;
     if(!c.valid||c.srca!=a||c.srcb!=b||c.step!=step||c.mode!=mode) {
         cudaMemset(c.error,0,4);
         bool all=!c.valid||c.step!=step||c.mode!=mode;
         if(all||c.srca!=a)narrow_convert<<<(unsigned)((counta+255)/256),256>>>(a,c.a,counta,fmt,c.error);
         if(all||c.srcb!=b)narrow_convert<<<(unsigned)((countb+255)/256),256>>>(b,c.b,countb,fmt,c.error);
+        if(mode==19){
+            if(all||c.srca!=a){cudaMemset(c.error+1,0,4);max_energy<<<m,128>>>(a,m,step!=0,(unsigned*)(c.error+1));}
+            if(all||c.srcb!=b){cudaMemset(c.error+2,0,4);max_energy<<<n,128>>>(b,n,step!=0,(unsigned*)(c.error+2));}
+            unsigned e[2]={};if(cudaMemcpy(e,c.error+1,8,cudaMemcpyDeviceToHost)!=cudaSuccess)return -1;
+            c.bias_safe=(uint64_t)e[0]*e[1]<(1ull<<44);
+            static bool printed=false;if(!printed){fprintf(stderr,"[tensor] Cauchy energy bounds A=%u B=%u: %s\n",e[0],e[1],c.bias_safe?"exact biased FP32":"exact segmented fallback");printed=true;}
+        }
         int error=0;
         if(cudaGetLastError()!=cudaSuccess||cudaMemcpy(&error,c.error,4,cudaMemcpyDeviceToHost)!=cudaSuccess)return -1;
         if(error){fprintf(stderr,"[tensor] narrow mode requires exact input integers in [-3,3]; use the automatic binary A / zero-B generation\n");return -1;}
@@ -75,9 +88,9 @@ template<int FMT> static void run_general(const NarrowCache& c,int m,int n,int r
 int cp_narrow_period_batch(int dev,int mode,const int8_t* a,const int8_t* b,int m,int n,
     int rp,int cp,int rb,int cb,int step,uint32_t* dump,size_t tiles,const CpCutlassJackpotLaunch* j) {
     cudaDeviceProp prop;cudaGetDeviceProperties(&prop,dev);
-    if(!cp_tensor_raw_test()&&mode!=3&&mode!=4&&mode!=9)
+    if(!cp_tensor_raw_test()&&mode!=3&&mode!=4&&mode!=9&&mode!=19)
         return cp_radix_period_batch(dev,mode,a,b,m,n,rp,cp,rb,cb,step,dump,tiles,j);
-    if((mode==6||mode==7||mode>=10)&&prop.major<12){fprintf(stderr,"[tensor] this mode requires Blackwell SM120a\n");return -1;}
+    if((mode==6||mode==7||(mode>=10&&mode<=14)||mode==18)&&prop.major<12){fprintf(stderr,"[tensor] this mode requires Blackwell SM120a\n");return -1;}
     if(prepare(dev,mode,a,b,m,n,step)!=0)return -1;
     const auto& c=cache[dev];CpCutlassJackpotLaunch jp={};if(j)jp=*j;
     switch(mode) {
@@ -91,6 +104,9 @@ int cp_narrow_period_batch(int dev,int mode,const int8_t* a,const int8_t* b,int 
         else cp_int4_kernel<false><<<dim3(cb,rb),256>>>((const unsigned char*)c.a,(const unsigned char*)c.b,m,n,rp,cp,step!=0,nullptr,tiles,jp,j!=nullptr);
         break;
     case 9:run_general<4>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
+    case 19:
+        if(c.bias_safe)run<4>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);
+        else run_general<4>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
     case 10:run<2,true>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
     case 11:run<1,true>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
     case 12:run<6>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;

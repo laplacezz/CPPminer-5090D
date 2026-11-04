@@ -153,7 +153,7 @@ __global__ __launch_bounds__(256) void cp_narrow_kernel(const void* av,const voi
                         fold^=(uint32_t)cumulative[i][j][e];
                     } else fold^=__float_as_uint(fc[i][j][e]);
                 }
-        if constexpr(!HALFACC&&!GENERAL)fold=(uint32_t)((int32_t)(fold<<10)>>10);
+        if constexpr(!HALFACC&&!GENERAL)fold=(uint32_t)((int32_t)(fold<<9)>>9);
         if(DUMP)dump[(size_t)s*tiles+tile]=fold;
         int w=s%16;transcript[w]=((transcript[w]<<13)|(transcript[w]>>19))^fold;
     }

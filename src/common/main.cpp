@@ -131,7 +131,7 @@ static void print_usage(void)
     printf("  --tensor-mode MODE  int8 (default), fp16, mixed; exact integer results\n");
     printf("                     bf16, tf32, fp8, fp6, fp4, int4, fp16-fast,\n");
     printf("                     fp4-fp16, fp6-fp16, mxfp6, mxfp4, nvfp4, fp6-karatsuba (exact radix reconstruction)\n");
-    printf("                     project-fp16, project-bf16, project-tf32 (checked reassociation)\n");
+    printf("                     project-fp16, project-bf16, project-tf32, fp16-bias (checked bounds)\n");
     printf("  --positive-a        experimental legal A signal in [16,47] (CUDA)\n");
 #if defined(CP_ENABLE_CUBLAS) && CP_ENABLE_CUBLAS
     printf("  --cublas-period      debug: cuBLAS period GEMM + separate XOR/jackpot\n");
@@ -796,8 +796,8 @@ int main(int argc, char** argv)
 #if defined(CP_ENABLE_CUDA) && CP_ENABLE_CUDA
             if(i+1>=argc){fprintf(stderr,"--tensor-mode requires a mode name (see --help)\n");return 1;}
             const char* mode=argv[++i];
-            const char* modes[]={"int8","fp16","mixed","bf16","tf32","fp8","fp6","fp4","int4","fp16-fast","fp4-fp16","fp6-fp16","mxfp6","mxfp4","nvfp4","project-fp16","project-bf16","project-tf32","fp6-karatsuba"};
-            int id=-1;for(int j=0;j<19;++j)if(!strcmp(mode,modes[j]))id=j;
+            const char* modes[]={"int8","fp16","mixed","bf16","tf32","fp8","fp6","fp4","int4","fp16-fast","fp4-fp16","fp6-fp16","mxfp6","mxfp4","nvfp4","project-fp16","project-bf16","project-tf32","fp6-karatsuba","fp16-bias"};
+            int id=-1;for(int j=0;j<20;++j)if(!strcmp(mode,modes[j]))id=j;
             if(cp_tensor_set_mode(id)!=0){fprintf(stderr,"Unknown tensor mode\n");return 1;}
             cutlass_fused=1;
 #else
