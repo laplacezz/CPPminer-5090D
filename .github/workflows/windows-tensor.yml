@@ -41,6 +41,7 @@ jobs:
           Copy-Item build/cppminer.exe,build/cp_tensor_test.exe,LICENSE $out
           Copy-Item "$env:CUDA_PATH/bin/cudart64_12.dll" $out
           Copy-Item packaging/windows/* $out -Recurse
+          Copy-Item docs/EXACT_ALGORITHMS.md "$out/ALGORITHMS.md"
           $crt = Get-ChildItem "${env:VCToolsRedistDir}/x64/Microsoft.VC143.CRT/*.dll"
           Copy-Item $crt.FullName $out
           git rev-parse HEAD | Out-File "$out/BUILD-COMMIT.txt" -Encoding ascii

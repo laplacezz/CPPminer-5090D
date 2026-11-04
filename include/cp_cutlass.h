@@ -50,6 +50,8 @@ int cp_radix_period_batch(int dev,int mode,const int8_t* a,const int8_t* b,int m
 /* Returns 1 for a checked integer fallback, 0 for successful projection, -1 for error. */
 int cp_project_period_batch(int dev,int mode,const int8_t* a,int m,int n,
     int rp,int cp,int rb,int cb,int step,uint32_t* dump,size_t tiles,const CpCutlassJackpotLaunch* jp);
+int cp_int8_shape_batch(int mode,const int8_t* a,const int8_t* b,int m,int n,
+    int rp,int cp,int rb,int cb,int step,uint32_t* dump,size_t tiles,const CpCutlassJackpotLaunch* jp);
 
 int cp_cutlass_period_batch(
     int dev,

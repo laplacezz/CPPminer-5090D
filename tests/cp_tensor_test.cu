@@ -42,7 +42,7 @@ int main(int argc,char**argv) {
     const int dim=large?131072:bench?8192:256;
     std::vector<int8_t>a((size_t)dim*4096),b(a.size());
     int8_t *da,*db;uint32_t*dd;
-    CU(cudaMalloc(&da,a.size()));CU(cudaMalloc(&db,b.size()));CU(cudaMalloc(&dd,32*256*sizeof(uint32_t)));
+    CU(cudaMalloc(&da,a.size()));CU(cudaMalloc(&db,b.size()));CU(cudaMalloc(&dd,32*1024*sizeof(uint32_t)));
     for(auto&x:a)x=(int8_t)next();for(auto&x:b)x=(int8_t)next();
     uint32_t* pairs=nullptr;int8_t* ebr=nullptr;
     CU(cudaMalloc(&pairs,8192*sizeof(uint32_t)));CU(cudaMalloc(&ebr,(size_t)dim*128));
@@ -71,7 +71,7 @@ int main(int argc,char**argv) {
                 auto aa=step?pack(a,dim):a,bb=step?pack(b,dim):b;
                 CU(cudaMemcpy(da,aa.data(),aa.size(),cudaMemcpyHostToDevice));
                 CU(cudaMemcpy(db,bb.data(),bb.size(),cudaMemcpyHostToDevice));
-                for(int mode=0;mode<20;++mode) {
+                for(int mode=0;mode<22;++mode) {
                     if(prop.major<12&&(mode==6||mode==7||(mode>=10&&mode<=14)||mode==18))continue;
                     cp_tensor_set_mode(mode);
                     cp_tensor_invalidate_inputs(0);
@@ -87,6 +87,19 @@ int main(int argc,char**argv) {
                     printf("PASS pattern=%d step=%d mode=%d 8192 milestone folds\n",pattern,step,mode);
                 }
             }
+        }
+        for(int step=0;step<2;++step){
+            cp_project_set_noise(0,nullptr,nullptr);
+            auto aa=step?pack(a,dim):a,bb=step?pack(b,dim):b;
+            CU(cudaMemcpy(da,aa.data(),aa.size(),cudaMemcpyHostToDevice));CU(cudaMemcpy(db,bb.data(),bb.size(),cudaMemcpyHostToDevice));
+            std::vector<uint32_t> refs(32*1024);
+            for(int r=0;r<2;++r)for(int c=0;c<2;++c){auto rr=reference(a,b,dim,r,c);
+                for(int s=0;s<32;++s)for(int t=0;t<256;++t)refs[(size_t)s*1024+(r*2+c)*256+t]=rr[s*256+t];}
+            for(int mode=20;mode<22;++mode){cp_tensor_set_mode(mode);cp_tensor_invalidate_inputs(0);
+                if(cp_cutlass_period_batch(0,da,db,dim,dim,0,0,2,2,step,dd,1024,nullptr)!=0)return 2;
+                std::vector<uint32_t> got(refs.size());CU(cudaMemcpy(got.data(),dd,got.size()*4,cudaMemcpyDeviceToHost));
+                if(got!=refs){printf("FAIL multi-CTA step=%d mode=%d\n",step,mode);return 1;}
+                printf("PASS multi-CTA step=%d mode=%d canonical 32768 folds\n",step,mode);}
         }
         printf("ALL EXACTNESS TESTS PASSED\n");
     } else {
@@ -108,7 +121,7 @@ int main(int argc,char**argv) {
         cudaEvent_t begin,end;CU(cudaEventCreate(&begin));CU(cudaEventCreate(&end));
         const int rb=large?32:64,cb=large?1024:64; const double mac=(double)rb*cb*128*128*4096;
         int selected=argc>2?atoi(argv[2]):-1;
-        for(int mode=0;mode<20;++mode) {
+        for(int mode=0;mode<22;++mode) {
             if(selected>=0&&mode!=selected)continue;
             if((!exact&&!narrow&&mode>=3)||(narrow&&mode>=15))continue;
             if(prop.major<12&&(mode==6||mode==7||(mode>=10&&mode<=14)||mode==18))continue;
@@ -123,7 +136,7 @@ int main(int argc,char**argv) {
                 CU(cudaEventRecord(end));CU(cudaEventSynchronize(end));float ms;CU(cudaEventElapsedTime(&ms,begin,end));samples.push_back(ms);
             }while(std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count()<6.0);
             std::sort(samples.begin(),samples.end());float ms=samples[samples.size()/2];
-            printf("BENCH mode=%d samples=%zu median_ms=%.4f GEMM+fold+hash_TMAC_s=%.4f (not pool hashrate)\n",mode,samples.size(),ms,mac/(ms*1e9));fflush(stdout);
+            printf("BENCH mode=%d samples=%zu median_ms=%.4f GEMM+fold+hash_TMAC_s=%.4f %s (not pool hashrate)\n",mode,samples.size(),ms,mac/(ms*1e9),exact?"including repeated A preparation":"cached operands");fflush(stdout);
         }
     }
     CU(cudaFree(da));CU(cudaFree(db));CU(cudaFree(dd));return 0;
