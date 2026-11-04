@@ -35,8 +35,9 @@ int main(int argc,char**argv) {
     cudaDeviceProp prop;CU(cudaGetDeviceProperties(&prop,0));
     printf("GPU %s cc%d.%d\n",prop.name,prop.major,prop.minor);
     if(!cp_cutlass_device_ok(0))return 2;
-    bool bench=argc>1 && !strcmp(argv[1],"--bench");
-    const int dim=bench?8192:256;
+    bool large=argc>1 && !strcmp(argv[1],"--bench-large");
+    bool bench=large || (argc>1 && !strcmp(argv[1],"--bench"));
+    const int dim=large?131072:bench?8192:256;
     std::vector<int8_t>a((size_t)dim*4096),b(a.size());
     int8_t *da,*db;uint32_t*dd;
     CU(cudaMalloc(&da,a.size()));CU(cudaMalloc(&db,b.size()));CU(cudaMalloc(&dd,32*256*sizeof(uint32_t)));
@@ -72,7 +73,7 @@ int main(int argc,char**argv) {
         CU(cudaMalloc(&found,4));CU(cudaMalloc(&rows,4));CU(cudaMalloc(&cols,4));
         CpCutlassJackpotLaunch jp={};jp.d_a_key8=key;jp.d_found=found;jp.d_out_t_rows=rows;jp.d_out_t_cols=cols;
         cudaEvent_t begin,end;CU(cudaEventCreate(&begin));CU(cudaEventCreate(&end));
-        const int rb=64,cb=64; const double mac=(double)rb*cb*128*128*4096;
+        const int rb=large?32:64,cb=large?1024:64; const double mac=(double)rb*cb*128*128*4096;
         int selected=argc>2?atoi(argv[2]):-1;
         for(int mode=0;mode<3;++mode) {
             if(selected>=0&&mode!=selected)continue;

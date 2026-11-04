@@ -36,10 +36,15 @@ __global__ __launch_bounds__(256) void cp_tensor_kernel(
     __shared__ __align__(16) __half ha[128][40], hb[128][40];
     const int tid=threadIdx.x, lane=tid&31, warp=tid>>5;
     const int wm=warp/4, wn=warp%4, gid=lane/4, t=lane%4;
-    const int row0=(rp+blockIdx.y)*128, col0=(cp+blockIdx.x)*128;
+    // Row-fast swizzle: keep the small A row panel hot while streaming B.
+    // The default x-fast traversal repeatedly evicted the same B panels at
+    // production (131072-row) dimensions despite looking fast at 8192 rows.
+    const unsigned linear=blockIdx.y*gridDim.x+blockIdx.x;
+    const unsigned tile_row=linear%gridDim.y,tile_col=linear/gridDim.y;
+    const int row0=(rp+tile_row)*128, col0=(cp+tile_col)*128;
     int acc[4][4][4]={};
     uint32_t transcript[16]={};
-    const size_t tile=((size_t)blockIdx.y*gridDim.x+blockIdx.x)*256+tid;
+    const size_t tile=((size_t)tile_row*gridDim.x+tile_col)*256+tid;
     #pragma unroll 1
     for(int milestone=0;milestone<K_DIM/R_RANK;++milestone) {
         float partial[4][4][4]={};
