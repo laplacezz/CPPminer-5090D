@@ -88,6 +88,7 @@ int main(int argc,char**argv) {
                 }
             }
         }
+        for(auto&x:a)x=(int8_t)next();for(auto&x:b)x=(int8_t)next();
         for(int step=0;step<2;++step){
             cp_project_set_noise(0,nullptr,nullptr);
             auto aa=step?pack(a,dim):a,bb=step?pack(b,dim):b;
