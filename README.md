@@ -1,4 +1,4 @@
-> **5090D experimental fork (2026-11-05):** 22 exact arithmetic paths and a portable Windows build. The new algorithms have **not** demonstrated an advantage over WildRig or full-5090 performance. See the [Chinese experiment report](docs/EXPERIMENT-REPORT.md), [algorithms and bounds](docs/EXACT_ALGORITHMS.md), and [experimental Windows release](https://github.com/laplacezz/CPPminer-5090D/releases/tag/v0.1.0-5090d-experimental). LuckyPool was tested; Pearlhash private protocol / PRL+NOCK merge is not implemented. The original upstream documentation follows.
+> **5090D experimental fork (2026-11-05):** 22 exact arithmetic paths and a portable Windows build. The new algorithms have **not** demonstrated an advantage over WildRig or full-5090 performance. See the [Chinese experiment report](docs/EXPERIMENT-REPORT.md), [algorithms and bounds](docs/EXACT_ALGORITHMS.md), and [verified Windows build and artifact](https://github.com/laplacezz/CPPminer-5090D/actions/runs/41897096683). LuckyPool was tested; Pearlhash private protocol / PRL+NOCK merge is not implemented. The original upstream documentation follows.
 
 # CPPminer
 
