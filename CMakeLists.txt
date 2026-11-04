@@ -9,6 +9,7 @@ option(CP_ENABLE_WGPU   "Build Quantus wgpu GpuEngine backend (Rust FFI)" OFF)
 option(CP_ENABLE_CUBLAS "Link cuBLAS for --cublas-period debug path" OFF)
 set(CP_CUDA_ARCH "" CACHE STRING "CUDA architecture list; empty = native")
 option(CP_REQUIRE_PROOF "Fail instead of producing a proof-stub miner" OFF)
+option(CP_CUDA_SM120A "Add Blackwell architecture-specific low precision code" ON)
 # Termux + vendor OpenCL: driver needs /vendor libc++, miner needs Termux libc++.
 # Static libc++ lets LD_LIBRARY_PATH prefer /vendor without breaking the binary.
 option(CP_STATIC_LIBCXX "Statically link libc++ (Termux/vendor OpenCL)" OFF)
@@ -205,6 +206,7 @@ if(CP_ENABLE_CUDA)
     list(APPEND CP_SOURCES
         src/cuda/cp_gpu.cu
         src/cuda/cp_cutlass_gemm.cu
+        src/cuda/cp_narrow_gemm.cu
         src/cuda/cp_cuda_worker.cpp
     )
     list(APPEND CP_INCLUDE_DIRS
@@ -409,9 +411,13 @@ target_include_directories(cppminer PRIVATE ${CP_INCLUDE_DIRS})
 
 if(CP_ENABLE_CUDA)
     target_link_libraries(cppminer PRIVATE CUDA::cudart)
-    add_executable(cp_tensor_test tests/cp_tensor_test.cu src/cuda/cp_cutlass_gemm.cu)
+    add_executable(cp_tensor_test tests/cp_tensor_test.cu src/cuda/cp_cutlass_gemm.cu src/cuda/cp_narrow_gemm.cu)
     target_include_directories(cp_tensor_test PRIVATE include src/cuda)
     target_link_libraries(cp_tensor_test PRIVATE CUDA::cudart)
+    if(CP_CUDA_SM120A)
+        target_compile_options(cppminer PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-gencode=arch=compute_120a,code=sm_120a>)
+        target_compile_options(cp_tensor_test PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-gencode=arch=compute_120a,code=sm_120a>)
+    endif()
     target_compile_options(cp_tensor_test PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O3;-Xptxas=-v>)
     if(CP_ENABLE_CUBLAS)
         target_link_libraries(cppminer PRIVATE CUDA::cublas)

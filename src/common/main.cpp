@@ -129,6 +129,8 @@ static void print_usage(void)
            R_RANK);
     printf("  --cutlass-fused      fused Tensor Core GEMM + jackpot (CUDA default)\n");
     printf("  --tensor-mode MODE  int8 (default), fp16, mixed; exact integer results\n");
+    printf("                     bf16, tf32, fp8, fp6, fp4, int4, fp16-fast,\n");
+    printf("                     fp4-fp16, fp6-fp16, mxfp6 (exact bounded inputs)\n");
     printf("  --positive-a        experimental legal A signal in [16,47] (CUDA)\n");
 #if defined(CP_ENABLE_CUBLAS) && CP_ENABLE_CUBLAS
     printf("  --cublas-period      debug: cuBLAS period GEMM + separate XOR/jackpot\n");
@@ -791,9 +793,10 @@ int main(int argc, char** argv)
             no_fee = 1;
         } else if(!strcmp(argv[i], "--tensor-mode")){
 #if defined(CP_ENABLE_CUDA) && CP_ENABLE_CUDA
-            if(i+1>=argc){fprintf(stderr,"--tensor-mode requires int8, fp16 or mixed\n");return 1;}
+            if(i+1>=argc){fprintf(stderr,"--tensor-mode requires a mode name (see --help)\n");return 1;}
             const char* mode=argv[++i];
-            int id=!strcmp(mode,"int8")?0:!strcmp(mode,"fp16")?1:!strcmp(mode,"mixed")?2:-1;
+            const char* modes[]={"int8","fp16","mixed","bf16","tf32","fp8","fp6","fp4","int4","fp16-fast","fp4-fp16","fp6-fp16","mxfp6"};
+            int id=-1;for(int j=0;j<13;++j)if(!strcmp(mode,modes[j]))id=j;
             if(cp_tensor_set_mode(id)!=0){fprintf(stderr,"Unknown tensor mode\n");return 1;}
             cutlass_fused=1;
 #else

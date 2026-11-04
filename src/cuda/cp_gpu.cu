@@ -887,7 +887,7 @@ static int gpu_prepare_noisy_matrices(
 
     t_step = cp_now_sec();
     cp_gen_random_matrix_kernel<<<(total_a + tpb - 1) / tpb, tpb>>>(
-        rng_seed, cp_tensor_positive_a()?2:0, total_a, g->d_A_sig);
+        rng_seed, cp_tensor_signal_tag(), total_a, g->d_A_sig);
     cp_gen_random_matrix_kernel<<<(total_b + tpb - 1) / tpb, tpb>>>(
         rng_seed, 1, total_b, g->d_Bt_sig);
     CU_CHECK(cudaGetLastError());
@@ -1010,7 +1010,7 @@ static int gpu_prepare_attempt_a(GpuCtx* g, uint64_t rng_seed, const uint8_t job
 
     t_step = cp_now_sec();
     cp_gen_random_matrix_kernel<<<(total_a + tpb - 1) / tpb, tpb>>>(
-        rng_seed, cp_tensor_positive_a()?2:0, total_a, g->d_A_sig);
+        rng_seed, cp_tensor_signal_tag(), total_a, g->d_A_sig);
     CU_CHECK(cudaGetLastError());
     CU_CHECK(cudaDeviceSynchronize());
     printf("[gpu-prep] random A gen %.3fs\n", cp_now_sec() - t_step);

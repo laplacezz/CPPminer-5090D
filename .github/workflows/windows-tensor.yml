@@ -20,7 +20,7 @@ jobs:
         run: ./scripts/ci-cuda.ps1
       - name: Configure
         shell: pwsh
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCP_ENABLE_CPU=ON -DCP_ENABLE_CUDA=ON '-DCP_CUDA_ARCH=89;120' -DCP_REQUIRE_PROOF=ON -DCUDAToolkit_ROOT="$env:CUDA_PATH" -DCMAKE_CUDA_COMPILER="$env:CUDA_PATH/bin/nvcc.exe"
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCP_ENABLE_CPU=ON -DCP_ENABLE_CUDA=ON -DCP_CUDA_ARCH=89 -DCP_REQUIRE_PROOF=ON -DCUDAToolkit_ROOT="$env:CUDA_PATH" -DCMAKE_CUDA_COMPILER="$env:CUDA_PATH/bin/nvcc.exe"
       - name: Build real proof backend and Windows executables
         shell: pwsh
         run: cmake --build build --parallel 3

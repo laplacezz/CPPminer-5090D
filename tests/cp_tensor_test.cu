@@ -35,26 +35,30 @@ int main(int argc,char**argv) {
     cudaDeviceProp prop;CU(cudaGetDeviceProperties(&prop,0));
     printf("GPU %s cc%d.%d\n",prop.name,prop.major,prop.minor);
     if(!cp_cutlass_device_ok(0))return 2;
-    bool large=argc>1 && !strcmp(argv[1],"--bench-large");
-    bool bench=large || (argc>1 && !strcmp(argv[1],"--bench"));
+    bool narrow=argc>1 && (!strcmp(argv[1],"--bench-narrow") || !strcmp(argv[1],"--bench-narrow-large"));
+    bool large=argc>1 && (!strcmp(argv[1],"--bench-large") || !strcmp(argv[1],"--bench-narrow-large"));
+    bool bench=narrow || large || (argc>1 && !strcmp(argv[1],"--bench"));
     const int dim=large?131072:bench?8192:256;
     std::vector<int8_t>a((size_t)dim*4096),b(a.size());
     int8_t *da,*db;uint32_t*dd;
     CU(cudaMalloc(&da,a.size()));CU(cudaMalloc(&db,b.size()));CU(cudaMalloc(&dd,32*256*sizeof(uint32_t)));
     for(auto&x:a)x=(int8_t)next();for(auto&x:b)x=(int8_t)next();
     if(!bench) {
-        for(int pattern=0;pattern<3;++pattern) {
+        for(int pattern=0;pattern<4;++pattern) {
             if(pattern==1) {
                 for(size_t i=0;i<a.size();++i){a[i]=(i%11==0)?127:-128;b[i]=(i%17==0)?-127:127;}
             } else if(pattern==2) {
                 for(size_t i=0;i<a.size();++i){a[i]=(i%4096<2048)?127:-128;b[i]=(i%13==0)?-128:127;}
             }
+            if(pattern==3){for(auto&x:a)x=(int8_t)((int)(next()%7)-3);for(auto&x:b)x=(int8_t)((int)(next()%7)-3);}
             auto ref=reference(a,b,dim,1,1);
             for(int step=0;step<2;++step) {
                 auto aa=step?pack(a,dim):a,bb=step?pack(b,dim):b;
                 CU(cudaMemcpy(da,aa.data(),aa.size(),cudaMemcpyHostToDevice));
                 CU(cudaMemcpy(db,bb.data(),bb.size(),cudaMemcpyHostToDevice));
-                for(int mode=0;mode<3;++mode) {
+                for(int mode=0;mode<13;++mode) {
+                    if(pattern<3&&mode>=3)continue;
+                    if(prop.major<12&&(mode==6||mode==7||mode==10||mode==11||mode==12))continue;
                     cp_tensor_set_mode(mode);
                     cp_tensor_invalidate_inputs(0);
                     if(cp_cutlass_period_batch(0,da,db,dim,dim,1,1,1,1,step,dd,256,nullptr)!=0)return 2;
@@ -68,6 +72,7 @@ int main(int argc,char**argv) {
         }
         printf("ALL EXACTNESS TESTS PASSED\n");
     } else {
+        if(narrow){for(auto&x:a)x=(int8_t)((int)(next()%7)-3);for(auto&x:b)x=(int8_t)((int)(next()%7)-3);}
         CU(cudaMemcpy(da,a.data(),a.size(),cudaMemcpyHostToDevice));CU(cudaMemcpy(db,b.data(),b.size(),cudaMemcpyHostToDevice));
         uint32_t *key;int *found,*rows,*cols;CU(cudaMalloc(&key,32));CU(cudaMemset(key,17,32));
         CU(cudaMalloc(&found,4));CU(cudaMalloc(&rows,4));CU(cudaMalloc(&cols,4));
@@ -75,8 +80,10 @@ int main(int argc,char**argv) {
         cudaEvent_t begin,end;CU(cudaEventCreate(&begin));CU(cudaEventCreate(&end));
         const int rb=large?32:64,cb=large?1024:64; const double mac=(double)rb*cb*128*128*4096;
         int selected=argc>2?atoi(argv[2]):-1;
-        for(int mode=0;mode<3;++mode) {
+        for(int mode=0;mode<13;++mode) {
             if(selected>=0&&mode!=selected)continue;
+            if(!narrow&&mode>=3)continue;
+            if(prop.major<12&&(mode==6||mode==7||mode==10||mode==11||mode==12))continue;
             cp_tensor_set_mode(mode);std::vector<float>samples;
             auto start=std::chrono::steady_clock::now();
             do {

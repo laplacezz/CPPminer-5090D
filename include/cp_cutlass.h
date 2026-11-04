@@ -17,6 +17,9 @@ void cp_tensor_invalidate_inputs(int dev);
 void cp_tensor_release(int dev);
 void cp_tensor_set_positive_a(int on);
 int cp_tensor_positive_a(void);
+int cp_tensor_signal_tag(void);
+void cp_narrow_invalidate(int dev);
+void cp_narrow_release(int dev);
 
 /* Fused GEMM + in-register milestone XOR for one period batch panel.
  * Panel covers row_batch x col_batch CTAs of 128x128 (Case 10 / MMA lane).
@@ -31,6 +34,8 @@ typedef struct {
     int row_period0;
     int col_period0;
 } CpCutlassJackpotLaunch;
+int cp_narrow_period_batch(int dev,int mode,const int8_t* a,const int8_t* b,int m,int n,
+    int rp,int cp,int rb,int cb,int step,uint32_t* dump,size_t tiles,const CpCutlassJackpotLaunch* jp);
 
 int cp_cutlass_period_batch(
     int dev,
