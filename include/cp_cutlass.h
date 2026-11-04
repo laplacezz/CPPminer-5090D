@@ -19,6 +19,13 @@ void cp_tensor_release(int dev);
 void cp_tensor_set_positive_a(int on);
 int cp_tensor_positive_a(void);
 int cp_tensor_signal_tag(void);
+void cp_tensor_set_raw_test(int on);
+int cp_tensor_raw_test(void);
+void cp_radix_invalidate(int dev,int only_a);
+void cp_radix_release(int dev);
+void cp_project_invalidate(int dev,int only_a);
+void cp_project_release(int dev);
+void cp_project_set_noise(int dev,const uint32_t* pairs,const int8_t* ebr);
 void cp_narrow_invalidate(int dev);
 void cp_narrow_invalidate_a(int dev);
 void cp_narrow_release(int dev);
@@ -37,6 +44,11 @@ typedef struct {
     int col_period0;
 } CpCutlassJackpotLaunch;
 int cp_narrow_period_batch(int dev,int mode,const int8_t* a,const int8_t* b,int m,int n,
+    int rp,int cp,int rb,int cb,int step,uint32_t* dump,size_t tiles,const CpCutlassJackpotLaunch* jp);
+int cp_radix_period_batch(int dev,int mode,const int8_t* a,const int8_t* b,int m,int n,
+    int rp,int cp,int rb,int cb,int step,uint32_t* dump,size_t tiles,const CpCutlassJackpotLaunch* jp);
+/* Returns 1 for a checked integer fallback, 0 for successful projection, -1 for error. */
+int cp_project_period_batch(int dev,int mode,const int8_t* a,int m,int n,
     int rp,int cp,int rb,int cb,int step,uint32_t* dump,size_t tiles,const CpCutlassJackpotLaunch* jp);
 
 int cp_cutlass_period_batch(

@@ -44,6 +44,11 @@ template<int FMT> __device__ __forceinline__ void cp_lmma(float* d,const unsigne
             : "+f"(d[0]),"+f"(d[1]),"+f"(d[2]),"+f"(d[3])
             : "r"(a[0]),"r"(a[1]),"r"(a[2]),"r"(a[3]),"r"(b[0]),"r"(b[1]),
               "r"(scale),"h"(zero),"h"(zero),"r"(scale),"h"(zero),"h"(zero));
+    } else if constexpr(FMT==9) {
+        asm volatile("mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e2m3.e2m3.f32 "
+            "{%0,%1,%2,%3},{%4,%5,%6,%7},{%8,%9},{%0,%1,%2,%3};"
+            : "+f"(d[0]),"+f"(d[1]),"+f"(d[2]),"+f"(d[3])
+            : "r"(a[0]),"r"(a[1]),"r"(a[2]),"r"(a[3]),"r"(b[0]),"r"(b[1]));
     }
 #endif
 }
@@ -67,7 +72,7 @@ __device__ __forceinline__ void cp_narrow_jackpot(uint32_t* transcript,CpCutlass
     for(int w=7;w>=0;--w) {if(digest[w]<jp.bound[w])break;if(digest[w]>jp.bound[w]){ok=false;break;}}
     if(ok&&atomicCAS(jp.d_found,0,1)==0){*jp.d_out_t_rows=row;*jp.d_out_t_cols=col;}
 }
-template<int FMT,bool HALFACC,bool DUMP>
+template<int FMT,bool HALFACC,bool DUMP,bool GENERAL=false>
 __global__ __launch_bounds__(256) void cp_narrow_kernel(const void* av,const void* bv,
     int m,int n,int rp,int cp,bool step,uint32_t* dump,size_t tiles,CpCutlassJackpotLaunch jp,bool jackpot) {
     using T=typename std::conditional<FMT==3,unsigned,typename std::conditional<(FMT==4||FMT==5),unsigned short,unsigned char>::type>::type;
@@ -83,6 +88,10 @@ __global__ __launch_bounds__(256) void cp_narrow_kernel(const void* av,const voi
     for(int i=0;i<4;++i)for(int j=0;j<4;++j)for(int e=0;e<4;++e)fc[i][j][e]=12582912.0f;
     #pragma unroll 1
     for(int s=0;s<32;++s) {
+        if constexpr(GENERAL) {
+            #pragma unroll
+            for(int i=0;i<4;++i)for(int j=0;j<4;++j)for(int e=0;e<4;++e)fc[i][j][e]=0.0f;
+        }
         unsigned hc[4][4][2]={};
         #pragma unroll
         for(int panel=0;panel<4;++panel) {
@@ -135,13 +144,16 @@ __global__ __launch_bounds__(256) void cp_narrow_kernel(const void* av,const voi
             for(int j=0;j<4;++j)
                 #pragma unroll
                 for(int e=0;e<4;++e) {
-                    if constexpr(HALFACC) {
+                    if constexpr(GENERAL) {
+                        cumulative[i][j][e]+=__float2int_rn(fc[i][j][e]);
+                        fold^=(uint32_t)cumulative[i][j][e];
+                    } else if constexpr(HALFACC) {
                         unsigned short bits=(unsigned short)(hc[i][j][e/2]>>(16*(e%2)));
                         cumulative[i][j][e]+=__half2int_rn(__ushort_as_half(bits));
                         fold^=(uint32_t)cumulative[i][j][e];
                     } else fold^=__float_as_uint(fc[i][j][e]);
                 }
-        if constexpr(!HALFACC)fold=(uint32_t)((int32_t)(fold<<10)>>10);
+        if constexpr(!HALFACC&&!GENERAL)fold=(uint32_t)((int32_t)(fold<<10)>>10);
         if(DUMP)dump[(size_t)s*tiles+tile]=fold;
         int w=s%16;transcript[w]=((transcript[w]<<13)|(transcript[w]>>19))^fold;
     }

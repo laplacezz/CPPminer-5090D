@@ -405,7 +405,8 @@ else()
 endif()
 
 if(CP_ENABLE_CUDA)
-    add_library(cp_tensor_cuda OBJECT src/cuda/cp_cutlass_gemm.cu src/cuda/cp_narrow_gemm.cu)
+    add_library(cp_tensor_cuda OBJECT src/cuda/cp_cutlass_gemm.cu src/cuda/cp_narrow_gemm.cu
+        src/cuda/cp_radix_gemm.cu src/cuda/cp_project_gemm.cu)
     target_include_directories(cp_tensor_cuda PRIVATE include src/cuda)
     if(CP_CUDA_SM120A)
         target_compile_options(cp_tensor_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-gencode=arch=compute_120a,code=sm_120a>)

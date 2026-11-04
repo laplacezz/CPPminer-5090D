@@ -22,8 +22,8 @@ __device__ unsigned narrow_bits(int v,int fmt) {
     if(fmt==0){code=a==1?0x38:a==2?0x40:a==3?0x44:0;return code|(neg?0x80:0);}
     if(fmt==1||fmt==6){code=a==1?12:a==2?16:a==3?18:0;return code|(neg?32:0);}
     if(fmt==2){code=a==1?2:a==2?4:a==3?5:0;return (code|(neg?8:0))<<2;}
-    if(fmt==4){code=a==1?0x3c00:a==2?0x4000:a==3?0x4200:0;return code|(neg?0x8000:0);}
-    if(fmt==5){code=a==1?0x3f80:a==2?0x4000:a==3?0x4040:0;return code|(neg?0x8000:0);}
+    if(fmt==4)return __half_as_ushort(__int2half_rn(v));
+    if(fmt==5)return __float_as_uint((float)v)>>16;
     return __float_as_uint((float)v);
 }
 __global__ void narrow_convert(const int8_t* src,void* dst,size_t count,int fmt,int* error) {
@@ -35,7 +35,7 @@ __global__ void narrow_convert(const int8_t* src,void* dst,size_t count,int fmt,
         ((unsigned char*)dst)[i]=(unsigned char)(x|(y<<4));return;
     }
     if(i>=count)return;int v=src[i];
-    if(v<-3||v>3){atomicExch(error,1);v=0;}
+    if(fmt!=3&&fmt!=4&&fmt!=5&&(v<-3||v>3)){atomicExch(error,1);v=0;}
     unsigned bits=narrow_bits(v,fmt);
     if(fmt==3)((unsigned*)dst)[i]=bits;
     else if(fmt==4||fmt==5)((unsigned short*)dst)[i]=(unsigned short)bits;
@@ -67,15 +67,22 @@ template<int FMT,bool HALFACC=false> static void run(const NarrowCache& c,int m,
     if(dump)cp_narrow_kernel<FMT,HALFACC,true><<<dim3(cb,rb),256>>>(c.a,c.b,m,n,rp,cp,step!=0,dump,tiles,jp,jackpot);
     else cp_narrow_kernel<FMT,HALFACC,false><<<dim3(cb,rb),256>>>(c.a,c.b,m,n,rp,cp,step!=0,nullptr,tiles,jp,jackpot);
 }
+template<int FMT> static void run_general(const NarrowCache& c,int m,int n,int rp,int cp,int rb,int cb,int step,
+    uint32_t* dump,size_t tiles,CpCutlassJackpotLaunch jp,bool jackpot) {
+    if(dump)cp_narrow_kernel<FMT,false,true,true><<<dim3(cb,rb),256>>>(c.a,c.b,m,n,rp,cp,step!=0,dump,tiles,jp,jackpot);
+    else cp_narrow_kernel<FMT,false,false,true><<<dim3(cb,rb),256>>>(c.a,c.b,m,n,rp,cp,step!=0,nullptr,tiles,jp,jackpot);
+}
 int cp_narrow_period_batch(int dev,int mode,const int8_t* a,const int8_t* b,int m,int n,
     int rp,int cp,int rb,int cb,int step,uint32_t* dump,size_t tiles,const CpCutlassJackpotLaunch* j) {
     cudaDeviceProp prop;cudaGetDeviceProperties(&prop,dev);
+    if(!cp_tensor_raw_test()&&mode!=3&&mode!=4&&mode!=9)
+        return cp_radix_period_batch(dev,mode,a,b,m,n,rp,cp,rb,cb,step,dump,tiles,j);
     if((mode==6||mode==7||mode>=10)&&prop.major<12){fprintf(stderr,"[tensor] this mode requires Blackwell SM120a\n");return -1;}
     if(prepare(dev,mode,a,b,m,n,step)!=0)return -1;
     const auto& c=cache[dev];CpCutlassJackpotLaunch jp={};if(j)jp=*j;
     switch(mode) {
-    case 3:run<5>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
-    case 4:run<3>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
+    case 3:run_general<5>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
+    case 4:run_general<3>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
     case 5:run<0>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
     case 6:run<1>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
     case 7:run<2>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
@@ -83,7 +90,7 @@ int cp_narrow_period_batch(int dev,int mode,const int8_t* a,const int8_t* b,int 
         if(dump)cp_int4_kernel<true><<<dim3(cb,rb),256>>>((const unsigned char*)c.a,(const unsigned char*)c.b,m,n,rp,cp,step!=0,dump,tiles,jp,j!=nullptr);
         else cp_int4_kernel<false><<<dim3(cb,rb),256>>>((const unsigned char*)c.a,(const unsigned char*)c.b,m,n,rp,cp,step!=0,nullptr,tiles,jp,j!=nullptr);
         break;
-    case 9:run<4>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
+    case 9:run_general<4>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
     case 10:run<2,true>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
     case 11:run<1,true>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;
     case 12:run<6>(c,m,n,rp,cp,rb,cb,step,dump,tiles,jp,j!=nullptr);break;

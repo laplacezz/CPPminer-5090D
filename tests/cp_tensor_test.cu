@@ -43,24 +43,41 @@ int main(int argc,char**argv) {
     int8_t *da,*db;uint32_t*dd;
     CU(cudaMalloc(&da,a.size()));CU(cudaMalloc(&db,b.size()));CU(cudaMalloc(&dd,32*256*sizeof(uint32_t)));
     for(auto&x:a)x=(int8_t)next();for(auto&x:b)x=(int8_t)next();
+    uint32_t* pairs=nullptr;int8_t* ebr=nullptr;
+    CU(cudaMalloc(&pairs,8192*sizeof(uint32_t)));CU(cudaMalloc(&ebr,(size_t)dim*128));
     if(!bench) {
-        for(int pattern=0;pattern<4;++pattern) {
+        for(int pattern=0;pattern<7;++pattern) {
             if(pattern==1) {
                 for(size_t i=0;i<a.size();++i){a[i]=(i%11==0)?127:-128;b[i]=(i%17==0)?-127:127;}
             } else if(pattern==2) {
                 for(size_t i=0;i<a.size();++i){a[i]=(i%4096<2048)?127:-128;b[i]=(i%13==0)?-128:127;}
             }
             if(pattern==3){for(auto&x:a)x=(int8_t)((int)(next()%7)-3);for(auto&x:b)x=(int8_t)((int)(next()%7)-3);}
+            if(pattern==4){for(auto&x:a)x=(int8_t)((int)(next()%128)-63);for(auto&x:b)x=(int8_t)((int)(next()%127)-63);}
+            if(pattern==5||pattern==6){
+                std::vector<uint32_t> pp(8192);std::vector<int8_t> ee((size_t)dim*128);
+                for(int k=0;k<4096;++k){pp[2*k]=next()%128;pp[2*k+1]=(pp[2*k]+1+next()%127)%128;}
+                if(pattern==6){for(int k=0;k<4096;++k){pp[2*k]=0;pp[2*k+1]=1;}}
+                for(auto&x:ee)x=(int8_t)((int)(next()%64)-16);
+                for(auto&x:a)x=pattern==6?64:(int8_t)((int)(next()%128)-63);
+                for(int row=0;row<dim;++row)for(int k=0;k<4096;++k)
+                    b[(size_t)row*4096+k]=ee[(size_t)row*128+pp[2*k]]-ee[(size_t)row*128+pp[2*k+1]];
+                CU(cudaMemcpy(pairs,pp.data(),pp.size()*4,cudaMemcpyHostToDevice));
+                CU(cudaMemcpy(ebr,ee.data(),ee.size(),cudaMemcpyHostToDevice));cp_project_set_noise(0,pairs,ebr);
+            }else cp_project_set_noise(0,nullptr,nullptr);
             auto ref=reference(a,b,dim,1,1);
             for(int step=0;step<2;++step) {
                 auto aa=step?pack(a,dim):a,bb=step?pack(b,dim):b;
                 CU(cudaMemcpy(da,aa.data(),aa.size(),cudaMemcpyHostToDevice));
                 CU(cudaMemcpy(db,bb.data(),bb.size(),cudaMemcpyHostToDevice));
-                for(int mode=0;mode<15;++mode) {
-                    if(pattern<3&&mode>=3)continue;
+                for(int mode=0;mode<19;++mode) {
                     if(prop.major<12&&(mode==6||mode==7||mode>=10))continue;
                     cp_tensor_set_mode(mode);
                     cp_tensor_invalidate_inputs(0);
+                    if((pattern==5||pattern==6)&&mode>=15&&mode<=17){
+                        int check=cp_project_period_batch(0,mode,da,dim,dim,1,1,1,1,step,dd,256,nullptr);
+                        if(check!=(pattern==6?1:0)){printf("FAIL projection range/fallback pattern=%d mode=%d status=%d\n",pattern,mode,check);return 1;}
+                    }
                     if(cp_cutlass_period_batch(0,da,db,dim,dim,1,1,1,1,step,dd,256,nullptr)!=0)return 2;
                     std::vector<uint32_t> got(ref.size());CU(cudaMemcpy(got.data(),dd,got.size()*4,cudaMemcpyDeviceToHost));
                     for(size_t i=0;i<ref.size();++i) if(got[i]!=ref[i]) {
@@ -72,6 +89,7 @@ int main(int argc,char**argv) {
         }
         printf("ALL EXACTNESS TESTS PASSED\n");
     } else {
+        cp_tensor_set_raw_test(narrow?1:0);
         if(narrow){for(auto&x:a)x=(int8_t)((int)(next()%7)-3);for(auto&x:b)x=(int8_t)((int)(next()%7)-3);}
         CU(cudaMemcpy(da,a.data(),a.size(),cudaMemcpyHostToDevice));CU(cudaMemcpy(db,b.data(),b.size(),cudaMemcpyHostToDevice));
         uint32_t *key;int *found,*rows,*cols;CU(cudaMalloc(&key,32));CU(cudaMemset(key,17,32));
@@ -80,9 +98,9 @@ int main(int argc,char**argv) {
         cudaEvent_t begin,end;CU(cudaEventCreate(&begin));CU(cudaEventCreate(&end));
         const int rb=large?32:64,cb=large?1024:64; const double mac=(double)rb*cb*128*128*4096;
         int selected=argc>2?atoi(argv[2]):-1;
-        for(int mode=0;mode<15;++mode) {
+        for(int mode=0;mode<19;++mode) {
             if(selected>=0&&mode!=selected)continue;
-            if(!narrow&&mode>=3)continue;
+            if((!narrow&&mode>=3)||(narrow&&mode>=15))continue;
             if(prop.major<12&&(mode==6||mode==7||mode>=10))continue;
             cp_tensor_set_mode(mode);std::vector<float>samples;
             auto unix_ms=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();

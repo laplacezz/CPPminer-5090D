@@ -576,6 +576,8 @@ static void gpu_noise_apply_a(GpuCtx* g, int m)
 static void gpu_noise_apply_b(GpuCtx* g, int n, const int8_t* d_bt_sig)
 {
     cp_tensor_invalidate_inputs(g->dev);
+    cp_project_set_noise(g->dev,d_bt_sig==nullptr&&R_RANK==128?g->d_e_bl:nullptr,
+                         d_bt_sig==nullptr&&R_RANK==128?g->d_ebr:nullptr);
     const int tpb = 256;
     const size_t smem = (size_t)R_RANK + (size_t)K_DIM;
 

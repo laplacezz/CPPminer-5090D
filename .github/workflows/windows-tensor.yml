@@ -27,6 +27,8 @@ jobs:
       - name: CPU and Rust tests
         shell: pwsh
         run: |
+          python tests/test_exact_reassociation.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           ctest --test-dir build --output-on-failure
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cargo test --release --manifest-path rust/cp-proof-ffi/Cargo.toml
