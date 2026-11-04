@@ -1,0 +1,49 @@
+name: Windows exact tensor miner
+on:
+  push:
+    branches: ['research/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      RUSTC_BOOTSTRAP: '1'
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Prepare CUDA without installing a driver
+        shell: pwsh
+        run: ./scripts/ci-cuda.ps1
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCP_ENABLE_CPU=ON -DCP_ENABLE_CUDA=ON '-DCP_CUDA_ARCH=89;120' -DCP_REQUIRE_PROOF=ON -DCUDAToolkit_ROOT="$env:CUDA_PATH" -DCMAKE_CUDA_COMPILER="$env:CUDA_PATH/bin/nvcc.exe"
+      - name: Build real proof backend and Windows executables
+        shell: pwsh
+        run: cmake --build build --parallel 3
+      - name: CPU and Rust tests
+        shell: pwsh
+        run: |
+          ctest --test-dir build --output-on-failure
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo test --release --manifest-path rust/cp-proof-ffi/Cargo.toml
+      - name: Package portable Windows build
+        shell: pwsh
+        run: |
+          $out = 'dist/CPPminer-5090D-windows-experimental'
+          New-Item $out -ItemType Directory -Force | Out-Null
+          Copy-Item build/cppminer.exe,build/cp_tensor_test.exe,LICENSE $out
+          Copy-Item "$env:CUDA_PATH/bin/cudart64_12.dll" $out
+          Copy-Item packaging/windows/* $out -Recurse
+          $crt = Get-ChildItem "${env:VCToolsRedistDir}/x64/Microsoft.VC143.CRT/*.dll"
+          Copy-Item $crt.FullName $out
+          git rev-parse HEAD | Out-File "$out/BUILD-COMMIT.txt" -Encoding ascii
+          Compress-Archive "$out/*" 'dist/CPPminer-5090D-windows-experimental.zip' -Force
+          Get-FileHash 'dist/CPPminer-5090D-windows-experimental.zip' -Algorithm SHA256 | Format-List
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CPPminer-5090D-windows
+          path: dist/*.zip

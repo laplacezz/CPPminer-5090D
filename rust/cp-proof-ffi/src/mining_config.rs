@@ -212,4 +212,14 @@ mod tests {
         ];
         assert_eq!(cfg, EMBEDDED);
     }
+
+    #[test]
+    fn tensor_config_bytes_match_c_embedding() {
+        let rows=vec![0,8,16,24,32,40,48,56];
+        let cols=vec![0,1,8,9,16,17,24,25];
+        let cfg=mining_config_bytes(4096,128,&rows,&cols).unwrap();
+        let mut expected=[0u8;52];
+        expected[..20].copy_from_slice(&[0,16,0,0,128,0,0,0,7,7,0,0,0,0,0,1,3,3,0,0]);
+        assert_eq!(cfg,expected);
+    }
 }

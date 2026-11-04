@@ -22,6 +22,7 @@ extern "C" {
 #define CP_TILE_LAYOUT_CONTIGUOUS_8x8 3
 #define CP_TILE_LAYOUT_CONTIGUOUS_4x8 4
 #define CP_TILE_LAYOUT_CONTIGUOUS_16x16 5
+#define CP_TILE_LAYOUT_TENSOR_8x8 6
 
 /* Build plain_proof base64 in-process (Rust/pearl-blake3). Returns 0 on ok, -1 on error.
  * mining_config is retained for ABI compatibility but job_key is derived from tile_layout.

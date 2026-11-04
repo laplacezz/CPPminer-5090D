@@ -352,7 +352,7 @@ void cp_gpu_init(int* devs, int ndev)
         CU_CHECK(cudaSetDevice(g->dev));
         if(g_cutlass_fused && !cp_cutlass_device_ok(g->dev)){
             fprintf(stderr,
-                    "[gpu] GPU%d: --cutlass-fused needs Pascal SIMT (compute capability <= 7.5)\n",
+                    "[gpu] GPU%d: fused tensor path needs compute capability >= 8.0\n",
                     g->dev);
             exit(1);
         }
@@ -368,7 +368,7 @@ void cp_gpu_init(int* devs, int ndev)
 #endif
         g->use_cutlass_fused = g_cutlass_fused;
         printf("[gpu] GPU%d OK (%s, blocking sync)\n", g->dev,
-               g->use_cutlass_fused ? "CUTLASS fused period GEMM"
+               g->use_cutlass_fused ? "exact Tensor Core fused period GEMM"
                : (g->use_cublas_period ? "cuBLAS int8 period GEMM"
                                        : "CUDA period GEMM"));
         fflush(stdout);

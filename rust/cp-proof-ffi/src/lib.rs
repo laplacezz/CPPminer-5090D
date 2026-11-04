@@ -27,6 +27,8 @@ const SCATTERED_COLS: [usize; 16] = [
 /// (row stride 16, col stride 32). Must match `MmaLaneTile128x128`.
 const CUTLASS_ROWS: [usize; 8] = [0, 1, 2, 3, 16, 17, 18, 19];
 const CUTLASS_COLS: [usize; 8] = [0, 1, 2, 3, 32, 33, 34, 35];
+const TENSOR_ROWS: [usize; 8] = [0, 8, 16, 24, 32, 40, 48, 56];
+const TENSOR_COLS: [usize; 8] = [0, 1, 8, 9, 16, 17, 24, 25];
 
 const CONTIGUOUS_16X16_ROWS: [usize; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
@@ -38,6 +40,7 @@ enum TileLayout {
     Contiguous8x8 = 3,
     Contiguous4x8 = 4,
     Contiguous16x16 = 5,
+    Tensor8x8 = 6,
 }
 
 impl TileLayout {
@@ -49,7 +52,8 @@ impl TileLayout {
             3 => Ok(Self::Contiguous8x8),
             4 => Ok(Self::Contiguous4x8),
             5 => Ok(Self::Contiguous16x16),
-            _ => Err(format!("invalid tile_layout {v} (expected 0, 1, 2, 3, 4, or 5)")),
+            6 => Ok(Self::Tensor8x8),
+            _ => Err(format!("invalid tile_layout {v} (expected 0 through 6)")),
         }
     }
 }
@@ -97,6 +101,7 @@ fn row_patterns(layout: TileLayout) -> (&'static [usize], &'static [usize]) {
             &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
         ),
         TileLayout::Cutlass => (&CUTLASS_ROWS, &CUTLASS_COLS),
+        TileLayout::Tensor8x8 => (&TENSOR_ROWS, &TENSOR_COLS),
     }
 }
 

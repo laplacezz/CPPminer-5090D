@@ -197,6 +197,8 @@ static const int8_t *share_bt_for_proof(const ShareSnapshot *snap) {
 
 static const uint8_t *mining_cfg_for_layout(int tile_layout) {
     switch (tile_layout) {
+    case CP_TILE_LAYOUT_TENSOR_8x8:
+        return PEARL_TENSOR_CONFIG;
     case CP_TILE_LAYOUT_CUTLASS:
         return PEARL_CUTLASS_CONFIG;
     case CP_TILE_LAYOUT_CONTIGUOUS_8x8:

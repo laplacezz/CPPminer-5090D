@@ -19,6 +19,7 @@ extern const uint8_t PEARL_CONTIGUOUS_4x8_CONFIG[52];
 extern const uint8_t PEARL_CONTIGUOUS_16x16_CONFIG[52];
 /* Case 7.1 epilogue scatter: 16 A rows x 8 B cols per hash tile. */
 extern const uint8_t PEARL_CUTLASS_CONFIG[52];
+extern const uint8_t PEARL_TENSOR_CONFIG[52];
 
 void pearl_set_cutlass_fused(int on);
 

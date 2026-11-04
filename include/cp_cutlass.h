@@ -10,6 +10,9 @@ extern "C" {
 
 /* Returns 0 if CUTLASS fused GEMM can run on the current device. */
 int cp_cutlass_device_ok(int dev);
+/* 0=INT8, 1=exact FP16/FP32, 2=alternating exact INT8/FP16 panels. */
+int cp_tensor_set_mode(int mode);
+int cp_tensor_get_mode(void);
 
 /* Fused GEMM + in-register milestone XOR for one period batch panel.
  * Panel covers row_batch x col_batch CTAs of 128x128 (Case 10 / MMA lane).

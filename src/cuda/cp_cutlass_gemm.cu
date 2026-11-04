@@ -1,93 +1,26 @@
-#include "cp_cutlass.h"
-#include "cp_config.h"
-
-#include "cp_cutlass_gemm_types.h"
-#include "cp_cutlass_layout.h"
-
-#include <cuda_runtime.h>
+#include "cp_tensor_kernel.cuh"
 #include <stdio.h>
-
-#define CP_CUTLASS_CHECK(status)                                               \
-  do {                                                                         \
-    cutlass::Status _st = (status);                                            \
-    if (_st != cutlass::Status::kSuccess) {                                    \
-      fprintf(stderr, "[cutlass] %s:%d status %d\n", __FILE__, __LINE__,       \
-              static_cast<int>(_st));                                          \
-      return -1;                                                               \
-    }                                                                          \
-  } while (0)
-
-static cp_cutlass::FusedMilestoneGemmOp<cp_cutlass::Gemm128x128StepMajor>
-    g_fused_step_major;
-static cp_cutlass::FusedMilestoneGemmOp<cp_cutlass::Gemm128x128RowMajor>
-    g_fused_row_major;
-
-int cp_cutlass_device_ok(int dev)
-{
-  cudaDeviceProp prop;
-  if (cudaGetDeviceProperties(&prop, dev) != cudaSuccess) {
+static int tensor_mode=0;
+int cp_tensor_set_mode(int mode) {if(mode<0||mode>2)return -1;tensor_mode=mode;return 0;}
+int cp_tensor_get_mode(void) {return tensor_mode;}
+int cp_cutlass_device_ok(int dev) {cudaDeviceProp p;return cudaGetDeviceProperties(&p,dev)==cudaSuccess&&p.major>=8;}
+size_t cp_cutlass_tiles_per_batch(int r,int c) {return (size_t)r*c*256;}
+size_t cp_cutlass_tile_xor_bytes(int r,int c) {return cp_cutlass_tiles_per_batch(r,c)*32*sizeof(uint32_t);}
+template<int MODE> static void launch(const int8_t* a,const int8_t* b,int m,int n,
+    int rp,int cp,int rb,int cb,int step,uint32_t* dump,size_t tiles,const CpCutlassJackpotLaunch* jp) {
+    CpCutlassJackpotLaunch p={};if(jp)p=*jp;
+    if(dump) cp_tensor_kernel<MODE,true><<<dim3(cb,rb),256>>>(a,b,m,n,rp,cp,step!=0,dump,tiles,p,jp!=nullptr);
+    else cp_tensor_kernel<MODE,false><<<dim3(cb,rb),256>>>(a,b,m,n,rp,cp,step!=0,nullptr,tiles,p,jp!=nullptr);
+}
+int cp_cutlass_period_batch(int dev,const int8_t* a,const int8_t* b,int m,int n,
+    int rp,int cp,int rb,int cb,int step,uint32_t* dump,size_t tiles,const CpCutlassJackpotLaunch* jp) {
+    if(rb<=0||cb<=0||rp<0||cp<0||(rp+rb)*128>m||(cp+cb)*128>n||tiles!=(size_t)rb*cb*256||cudaSetDevice(dev)!=cudaSuccess)return -1;
+    switch(tensor_mode) {
+    case 0:launch<0>(a,b,m,n,rp,cp,rb,cb,step,dump,tiles,jp);break;
+    case 1:launch<1>(a,b,m,n,rp,cp,rb,cb,step,dump,tiles,jp);break;
+    case 2:launch<2>(a,b,m,n,rp,cp,rb,cb,step,dump,tiles,jp);break;
+    }
+    cudaError_t err=cudaGetLastError();
+    if(err!=cudaSuccess){fprintf(stderr,"[tensor] %s\n",cudaGetErrorString(err));return -1;}
     return 0;
-  }
-  /* SIMT int8 DP4A path targets Pascal (sm_61) and similar pre-TensorCore GPUs. */
-  return prop.major < 7 || (prop.major == 7 && prop.minor <= 5);
-}
-
-size_t cp_cutlass_tiles_per_batch(int row_batch_count, int col_batch_count)
-{
-  return static_cast<size_t>(row_batch_count) *
-         static_cast<size_t>(col_batch_count) *
-         static_cast<size_t>(MmaLaneTile128x128::kThreadsPerCta);
-}
-
-size_t cp_cutlass_tile_xor_bytes(int row_batch_count, int col_batch_count)
-{
-  const int num_steps = K_DIM / R_RANK;
-  return cp_cutlass_tiles_per_batch(row_batch_count, col_batch_count) *
-         static_cast<size_t>(num_steps) * sizeof(uint32_t);
-}
-
-int cp_cutlass_period_batch(
-    int dev, const int8_t* d_Ap, const int8_t* d_BpT, int m, int n,
-    int row_period0, int col_period0, int row_batch_count, int col_batch_count,
-    int step_major, uint32_t* d_tile_xor, size_t tiles_per_batch,
-    const CpCutlassJackpotLaunch* jackpot)
-{
-  if (cudaSetDevice(dev) != cudaSuccess) {
-    return -1;
-  }
-
-  const int M = row_batch_count * CP_CUTLASS_CTA_M;
-  const int N_fat = col_batch_count * CP_CUTLASS_CTA_N;
-  const int K = K_DIM;
-  const int cta_cols = col_batch_count;
-  const size_t tile_count = tiles_per_batch;
-
-  const int8_t* d_A = d_Ap;
-  const int8_t* d_B = d_BpT;
-  if (step_major) {
-    d_A = d_Ap + (size_t)row_period0 * CP_CUTLASS_CTA_M * R_RANK;
-    d_B = d_BpT + (size_t)col_period0 * CP_CUTLASS_CTA_N * R_RANK;
-  } else {
-    d_A = d_Ap + (size_t)row_period0 * CP_CUTLASS_CTA_M * K_DIM;
-    d_B = d_BpT + (size_t)col_period0 * CP_CUTLASS_CTA_N * K_DIM;
-  }
-
-  cutlass::Status st = cutlass::Status::kErrorInternal;
-  if (step_major) {
-    CP_CUTLASS_CHECK(g_fused_step_major.initialize(
-        M, N_fat, K, m, n, const_cast<int8_t*>(d_A), const_cast<int8_t*>(d_B),
-        d_tile_xor, cta_cols, tile_count, jackpot));
-    st = g_fused_step_major();
-  } else {
-    CP_CUTLASS_CHECK(g_fused_row_major.initialize(
-        M, N_fat, K, m, n, const_cast<int8_t*>(d_A), const_cast<int8_t*>(d_B),
-        d_tile_xor, cta_cols, tile_count, jackpot));
-    st = g_fused_row_major();
-  }
-  if (st != cutlass::Status::kSuccess) {
-    fprintf(stderr, "[cutlass] kernel launch failed status %d\n",
-            static_cast<int>(st));
-    return -1;
-  }
-  return 0;
 }

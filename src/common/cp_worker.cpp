@@ -662,7 +662,7 @@ extern "C" int cp_worker_default_tile_layout(void)
 
 extern "C" int cp_worker_proof_tile_layout(void)
 {
-    return g_cutlass_fused ? CP_TILE_LAYOUT_CUTLASS : cp_worker_default_tile_layout();
+    return g_cutlass_fused ? CP_TILE_LAYOUT_TENSOR_8x8 : cp_worker_default_tile_layout();
 }
 
 extern "C" int cp_worker_mine_attempt(

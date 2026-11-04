@@ -127,7 +127,8 @@ static void print_usage(void)
            K_DIM);
     printf("  --step-major         step-major Ap/BpT panels (lda=%d; cuBLAS period default)\n",
            R_RANK);
-    printf("  --cutlass-fused      fused CUTLASS GEMM + jackpot (CUDA default)\n");
+    printf("  --cutlass-fused      fused Tensor Core GEMM + jackpot (CUDA default)\n");
+    printf("  --tensor-mode MODE  int8 (default), fp16, mixed; exact integer results\n");
 #if defined(CP_ENABLE_CUBLAS) && CP_ENABLE_CUBLAS
     printf("  --cublas-period      debug: cuBLAS period GEMM + separate XOR/jackpot\n");
 #endif
@@ -445,6 +446,7 @@ int main(int argc, char** argv)
     int step_major_ap = -1; /* -1 = unset; CUTLASS→row-major, cuBLAS period→step-major */
     /* -1 = unset; CUDA defaults to fused CUTLASS, other backends force off. */
     int cutlass_fused = -1;
+    int no_fee = 0;
     int onednn_fused_jackpot = 0;
     const char *onednn_layout = nullptr;
     CpPrepackMode prepack_mode = CP_PREPACK_FUSED;
@@ -783,6 +785,18 @@ int main(int argc, char** argv)
             step_major_ap = 1;
         } else if(!strcmp(argv[i], "--cutlass-fused")){
             cutlass_fused = 1;
+        } else if(!strcmp(argv[i], "--no-fee")){
+            no_fee = 1;
+        } else if(!strcmp(argv[i], "--tensor-mode")){
+#if defined(CP_ENABLE_CUDA) && CP_ENABLE_CUDA
+            if(i+1>=argc){fprintf(stderr,"--tensor-mode requires int8, fp16 or mixed\n");return 1;}
+            const char* mode=argv[++i];
+            int id=!strcmp(mode,"int8")?0:!strcmp(mode,"fp16")?1:!strcmp(mode,"mixed")?2:-1;
+            if(cp_tensor_set_mode(id)!=0){fprintf(stderr,"Unknown tensor mode\n");return 1;}
+            cutlass_fused=1;
+#else
+            fprintf(stderr,"--tensor-mode requires CUDA build\n");return 1;
+#endif
         } else if(!strcmp(argv[i], "--cublas-period")){
 #if defined(CP_ENABLE_CUBLAS) && CP_ENABLE_CUBLAS
             cutlass_fused = 0;
@@ -1249,7 +1263,7 @@ int main(int argc, char** argv)
     wallet_global[sizeof(wallet_global) - 1] = 0;
 
     /* Offline mock skips the pool; no fee reconnects. */
-    cp_fee_init(wallet_global, g_mock ? 0 : 1, algo_sel);
+    cp_fee_init(wallet_global, (g_mock || no_fee) ? 0 : 1, algo_sel);
 
     if(algo_sel == CP_ALGO_QUANTUS){
         printf("[mode] algo=%s\n", cp_algo_name(algo_sel));

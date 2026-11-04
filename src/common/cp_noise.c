@@ -90,6 +90,12 @@ const uint8_t PEARL_CUTLASS_CONFIG[52] = {
     0x00, 0x00, 0x00, 0x00
 };
 
+/* Native m16n8 MMA: rows [0,8,...,56], cols [0,1,8,9,16,17,24,25]. */
+const uint8_t PEARL_TENSOR_CONFIG[52] = {
+    0x00,0x10,0x00,0x00,0x80,0x00,0x00,0x00,
+    0x07,0x07,0x00,0x00,0x00,0x00,
+    0x00,0x01,0x03,0x03,0x00,0x00
+};
 static int g_pearl_contiguous_tiles = 0;
 static int g_pearl_contiguous_tile_mr = 8;
 static int g_pearl_contiguous_tile_w = 16;
@@ -119,7 +125,7 @@ void pearl_set_cutlass_fused(int on){
 
 static const uint8_t* pearl_active_mining_config(void){
     if(g_pearl_cutlass_fused)
-        return PEARL_CUTLASS_CONFIG;
+        return PEARL_TENSOR_CONFIG;
     if(g_pearl_contiguous_tiles) {
         if(g_pearl_contiguous_tile_mr == 4 && g_pearl_contiguous_tile_w == 8)
             return PEARL_CONTIGUOUS_4x8_CONFIG;
