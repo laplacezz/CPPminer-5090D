@@ -19,6 +19,10 @@ __device__ __forceinline__ void cp_hmma(float* d, const unsigned* a, const unsig
         : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b[0]), "r"(b[1]));
 }
 __device__ __forceinline__ unsigned cp_ld32(const void* p) { return *reinterpret_cast<const unsigned*>(p); }
+__device__ __forceinline__ void cp_async16(void* dst,const void* src) {
+    unsigned addr=(unsigned)__cvta_generic_to_shared(dst);
+    asm volatile("cp.async.ca.shared.global [%0], [%1], 16;"::"r"(addr),"l"(src));
+}
 __device__ __forceinline__ size_t cp_tensor_index(int row, int k, int rows, bool step) {
     return step ? ((size_t)(k / R_RANK) * rows + row) * R_RANK + k % R_RANK : (size_t)row * K_DIM + k;
 }
@@ -32,7 +36,7 @@ __global__ __launch_bounds__(256) void cp_tensor_kernel(
     size_t tile_count, CpCutlassJackpotLaunch jp, bool jackpot) {
     // Padded row strides avoid the repeated shared-memory bank collisions of
     // tightly packed 32-wide rows for the PTX fragment lane mapping.
-    __shared__ __align__(16) int8_t sa[128][48], sb[128][48];
+    __shared__ __align__(16) int8_t sa[2][128][48], sb[2][128][48];
     __shared__ __align__(16) __half ha[128][40], hb[128][40];
     const int tid=threadIdx.x, lane=tid&31, warp=tid>>5;
     const int wm=warp/4, wn=warp%4, gid=lane/4, t=lane%4;
@@ -45,17 +49,26 @@ __global__ __launch_bounds__(256) void cp_tensor_kernel(
     int acc[4][4][4]={};
     uint32_t transcript[16]={};
     const size_t tile=((size_t)tile_row*gridDim.x+tile_col)*256+tid;
+    if(MODE==0) {
+        const int rr=tid/2,kk=(tid%2)*16;
+        cp_async16(&sa[0][rr][kk],A+cp_tensor_index(row0+rr,kk,m,step));
+        cp_async16(&sb[0][rr][kk],B+cp_tensor_index(col0+rr,kk,n,step));
+        asm volatile("cp.async.commit_group;");
+    }
     #pragma unroll 1
     for(int milestone=0;milestone<K_DIM/R_RANK;++milestone) {
         float partial[4][4][4]={};
         #pragma unroll
         for(int panel=0;panel<4;++panel) {
             const int k0=milestone*128+panel*32, rr=tid/2, kk=(tid%2)*16;
+            const int stage=MODE==0?panel%2:0;
             const int8_t* ap=A+cp_tensor_index(row0+rr,k0+kk,m,step);
             const int8_t* bp=B+cp_tensor_index(col0+rr,k0+kk,n,step);
-            if(MODE==0 || (MODE==2 && panel%2==0)) {
-                *reinterpret_cast<int4*>(&sa[rr][kk])=*reinterpret_cast<const int4*>(ap);
-                *reinterpret_cast<int4*>(&sb[rr][kk])=*reinterpret_cast<const int4*>(bp);
+            if(MODE==0) {
+                asm volatile("cp.async.wait_group 0;");
+            } else if(MODE==2 && panel%2==0) {
+                *reinterpret_cast<int4*>(&sa[stage][rr][kk])=*reinterpret_cast<const int4*>(ap);
+                *reinterpret_cast<int4*>(&sb[stage][rr][kk])=*reinterpret_cast<const int4*>(bp);
             } else {
                 const __half* ah=AH+cp_tensor_index(row0+rr,k0+kk,m,step);
                 const __half* bh=BH+cp_tensor_index(col0+rr,k0+kk,n,step);
@@ -65,14 +78,19 @@ __global__ __launch_bounds__(256) void cp_tensor_kernel(
                 *reinterpret_cast<int4*>(&hb[rr][kk+8])=*reinterpret_cast<const int4*>(bh+8);
             }
             __syncthreads();
+            if(MODE==0 && k0+32<K_DIM) {
+                cp_async16(&sa[1-stage][rr][kk],A+cp_tensor_index(row0+rr,k0+32+kk,m,step));
+                cp_async16(&sb[1-stage][rr][kk],B+cp_tensor_index(col0+rr,k0+32+kk,n,step));
+                asm volatile("cp.async.commit_group;");
+            }
             if(MODE==0 || (MODE==2 && panel%2==0)) {
                 unsigned ar[4][4],br[4][2];
                 #pragma unroll
                 for(int i=0;i<4;++i) {
                     const int r=wm*64+i*16+gid,c=wn*32+i*8+gid;
-                    ar[i][0]=cp_ld32(&sa[r][t*4]); ar[i][1]=cp_ld32(&sa[r+8][t*4]);
-                    ar[i][2]=cp_ld32(&sa[r][t*4+16]); ar[i][3]=cp_ld32(&sa[r+8][t*4+16]);
-                    br[i][0]=cp_ld32(&sb[c][t*4]); br[i][1]=cp_ld32(&sb[c][t*4+16]);
+                    ar[i][0]=cp_ld32(&sa[stage][r][t*4]); ar[i][1]=cp_ld32(&sa[stage][r+8][t*4]);
+                    ar[i][2]=cp_ld32(&sa[stage][r][t*4+16]); ar[i][3]=cp_ld32(&sa[stage][r+8][t*4+16]);
+                    br[i][0]=cp_ld32(&sb[stage][c][t*4]); br[i][1]=cp_ld32(&sb[stage][c][t*4+16]);
                 }
                 #pragma unroll
                 for(int i=0;i<4;++i)
