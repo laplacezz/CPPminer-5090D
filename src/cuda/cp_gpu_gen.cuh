@@ -86,7 +86,10 @@ __global__ void cp_gen_random_matrix_kernel(
                ^ ((uint64_t)matrix_tag * 0xD1B54A32D192ED03ULL)
                ^ (uint64_t)idx * 0x9E3779B97F4A7C15ULL;
     s = cp_splitmix64(s);
-    out[idx] = (int8_t)((int)((s >> 32) % 128u) - 64);
+    // Optional signal distribution remains inside the legal INT7 interval.
+    // Actual committed bytes are hashed/proven; no verifier rule is relaxed.
+    out[idx] = matrix_tag==2 ? (int8_t)(16+((s>>32)&31u))
+                            : (int8_t)((int)((s >> 32) % 128u) - 64);
 }
 __global__ void cp_keyed_chunk_cv_kernel(
     const uint8_t* mat, size_t raw_len, size_t pad_len,

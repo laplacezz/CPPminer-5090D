@@ -129,6 +129,7 @@ static void print_usage(void)
            R_RANK);
     printf("  --cutlass-fused      fused Tensor Core GEMM + jackpot (CUDA default)\n");
     printf("  --tensor-mode MODE  int8 (default), fp16, mixed; exact integer results\n");
+    printf("  --positive-a        experimental legal A signal in [16,47] (CUDA)\n");
 #if defined(CP_ENABLE_CUBLAS) && CP_ENABLE_CUBLAS
     printf("  --cublas-period      debug: cuBLAS period GEMM + separate XOR/jackpot\n");
 #endif
@@ -797,6 +798,12 @@ int main(int argc, char** argv)
             cutlass_fused=1;
 #else
             fprintf(stderr,"--tensor-mode requires CUDA build\n");return 1;
+#endif
+        } else if(!strcmp(argv[i], "--positive-a")){
+#if defined(CP_ENABLE_CUDA) && CP_ENABLE_CUDA
+            cp_tensor_set_positive_a(1);
+#else
+            fprintf(stderr,"--positive-a requires CUDA build\n");return 1;
 #endif
         } else if(!strcmp(argv[i], "--cublas-period")){
 #if defined(CP_ENABLE_CUBLAS) && CP_ENABLE_CUBLAS

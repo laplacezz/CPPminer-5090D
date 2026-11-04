@@ -15,6 +15,8 @@ int cp_tensor_set_mode(int mode);
 int cp_tensor_get_mode(void);
 void cp_tensor_invalidate_inputs(int dev);
 void cp_tensor_release(int dev);
+void cp_tensor_set_positive_a(int on);
+int cp_tensor_positive_a(void);
 
 /* Fused GEMM + in-register milestone XOR for one period batch panel.
  * Panel covers row_batch x col_batch CTAs of 128x128 (Case 10 / MMA lane).

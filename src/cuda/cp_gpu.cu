@@ -182,7 +182,7 @@ static const char* cublas_status_str(cublasStatus_t st)
     }
 }
 
-/* Row-major C[M×N] = A[M×R] * B[N×R]^T (B = Bt rows). Same API as matmul_benchmark.cu. */
+/* Row-major C[M脳N] = A[M脳R] * B[N脳R]^T (B = Bt rows). Same API as matmul_benchmark.cu. */
 static cublasStatus_t pp_cublas_gemm_i8_bt(
     cublasHandle_t handle,
     const int8_t* A, int lda,
@@ -887,7 +887,7 @@ static int gpu_prepare_noisy_matrices(
 
     t_step = cp_now_sec();
     cp_gen_random_matrix_kernel<<<(total_a + tpb - 1) / tpb, tpb>>>(
-        rng_seed, 0, total_a, g->d_A_sig);
+        rng_seed, cp_tensor_positive_a()?2:0, total_a, g->d_A_sig);
     cp_gen_random_matrix_kernel<<<(total_b + tpb - 1) / tpb, tpb>>>(
         rng_seed, 1, total_b, g->d_Bt_sig);
     CU_CHECK(cudaGetLastError());
@@ -1010,7 +1010,7 @@ static int gpu_prepare_attempt_a(GpuCtx* g, uint64_t rng_seed, const uint8_t job
 
     t_step = cp_now_sec();
     cp_gen_random_matrix_kernel<<<(total_a + tpb - 1) / tpb, tpb>>>(
-        rng_seed, 0, total_a, g->d_A_sig);
+        rng_seed, cp_tensor_positive_a()?2:0, total_a, g->d_A_sig);
     CU_CHECK(cudaGetLastError());
     CU_CHECK(cudaDeviceSynchronize());
     printf("[gpu-prep] random A gen %.3fs\n", cp_now_sec() - t_step);
@@ -1971,7 +1971,7 @@ int cp_gpu_mine_attempt(
     const double scan_t0 = cp_now_sec();
     int found = gpu_scan_device(scan_key, pool_tgt, m, n, out_t_rows, out_t_cols, out_tiles_scanned);
     const double scan_sec = cp_now_sec() - scan_t0;
-    /* Device→host download deferred to cp_gpu_fetch_share_signals after host buffer reclaim. */
+    /* Device鈫抙ost download deferred to cp_gpu_fetch_share_signals after host buffer reclaim. */
     const uint64_t tiles_done = out_tiles_scanned ? *out_tiles_scanned : 0;
     cp_log_attempt_timing("gpu", prep_sec, scan_sec, tiles_done, 0.0);
     return found;

@@ -1,6 +1,9 @@
 #include "cp_tensor_kernel.cuh"
 #include <stdio.h>
 static int tensor_mode=0;
+static int positive_a=0;
+void cp_tensor_set_positive_a(int on){positive_a=on?1:0;}
+int cp_tensor_positive_a(void){return positive_a;}
 struct HalfCache { __half *a=nullptr,*b=nullptr; size_t as=0,bs=0; const int8_t *srca=nullptr,*srcb=nullptr; bool valid=false; int step=-1; };
 static HalfCache half_cache[16];
 __global__ void convert_half(const int8_t* src,__half* dst,size_t count) {
